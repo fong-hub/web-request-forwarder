@@ -29,7 +29,24 @@ npm run dev
 npm run build
 npm run lint
 npm run test
+npm run release:prepare -- 1.1.0
 ```
+
+## Release Flow
+
+Use the release helper to prepare a GitHub release locally:
+
+```bash
+npm run release:prepare -- 1.1.0
+```
+
+It will:
+
+- sync `package.json`, `package-lock.json`, and `src/manifest.json` to the target version
+- run `lint`, `test`, and `build`
+- create/update `releases/v<version>.md`
+- package `dist/` as `releases/request-forwarder-v<version>.zip`
+- print the `gh release create ...` command for GitHub publishing
 
 ## Notes
 

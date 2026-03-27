@@ -17,6 +17,7 @@ const STORAGE_KEYS = {
   extensionEnabled: 'request-forwarder.extension-enabled',
   rules: 'request-forwarder.rules',
   sync: 'request-forwarder.sync',
+  matches: 'request-forwarder.matches',
 } as const
 
 export type SyncState = {
@@ -24,10 +25,22 @@ export type SyncState = {
   lastError: string | null
 }
 
+export type RuleMatchRecord = {
+  count: number
+  lastMatchedAt: string
+  lastRequestUrl: string | null
+}
+
+export type MatchState = {
+  records: Record<string, RuleMatchRecord>
+  updatedAt: string | null
+}
+
 export type AppState = {
   extensionEnabled: boolean
   rules: RedirectRule[]
   sync: SyncState
+  matches: MatchState
 }
 
 export type ExportPayload = {
@@ -44,28 +57,38 @@ const defaultSyncState = (): SyncState => ({
   lastError: null,
 })
 
+const defaultMatchState = (): MatchState => ({
+  records: {},
+  updatedAt: null,
+})
+
 export const getAppState = async (): Promise<AppState> => {
   if (hasChromeStorage()) {
     const result = await chrome.storage.local.get(Object.values(STORAGE_KEYS))
     const extensionEnabledValue = result[STORAGE_KEYS.extensionEnabled]
     const rulesValue = result[STORAGE_KEYS.rules]
     const syncValue = result[STORAGE_KEYS.sync]
+    const matchesValue = result[STORAGE_KEYS.matches]
     const normalizedRules = normalizeImportedRules(rulesValue).rules
+    const rules = normalizedRules.length > 0 ? normalizedRules : [createExampleRule()]
 
     return {
       extensionEnabled:
         typeof extensionEnabledValue === 'boolean' ? extensionEnabledValue : true,
-      rules: normalizedRules.length > 0 ? normalizedRules : [createExampleRule()],
+      rules,
       sync: isSyncState(syncValue) ? syncValue : defaultSyncState(),
+      matches: normalizeMatchState(matchesValue, rules),
     }
   }
 
   const localRules = normalizeImportedRules(readLocalJson(STORAGE_KEYS.rules, [])).rules
+  const rules = localRules.length > 0 ? localRules : [createExampleRule()]
 
   return {
     extensionEnabled: readLocalJson(STORAGE_KEYS.extensionEnabled, true),
-    rules: localRules.length > 0 ? localRules : [createExampleRule()],
+    rules,
     sync: readLocalJson(STORAGE_KEYS.sync, defaultSyncState()),
+    matches: normalizeMatchState(readLocalJson(STORAGE_KEYS.matches, defaultMatchState()), rules),
   }
 }
 
@@ -156,6 +179,38 @@ export const setSyncState = async (sync: SyncState) => {
   localStorage.setItem(STORAGE_KEYS.sync, JSON.stringify(sync))
 }
 
+export const recordRuleMatch = async (
+  dnrId: number,
+  requestUrl?: string | null,
+): Promise<AppState | null> => {
+  const state = await getAppState()
+  const matchedRule = state.rules.find((rule) => rule.dnrId === dnrId)
+
+  if (!matchedRule) {
+    return null
+  }
+
+  const now = new Date().toISOString()
+  const currentRecord = state.matches.records[matchedRule.id]
+  const nextState = {
+    ...state,
+    matches: {
+      records: {
+        ...state.matches.records,
+        [matchedRule.id]: {
+          count: (currentRecord?.count ?? 0) + 1,
+          lastMatchedAt: now,
+          lastRequestUrl: requestUrl ?? currentRecord?.lastRequestUrl ?? null,
+        },
+      },
+      updatedAt: now,
+    },
+  }
+
+  await persistState(nextState)
+  return nextState
+}
+
 export const subscribeToState = (listener: () => void) => {
   if (hasChromeStorage()) {
     const handleChange = (changes: Record<string, unknown>, areaName: string) => {
@@ -166,7 +221,8 @@ export const subscribeToState = (listener: () => void) => {
       if (
         STORAGE_KEYS.extensionEnabled in changes ||
         STORAGE_KEYS.rules in changes ||
-        STORAGE_KEYS.sync in changes
+        STORAGE_KEYS.sync in changes ||
+        STORAGE_KEYS.matches in changes
       ) {
         listener()
       }
@@ -190,6 +246,15 @@ export const countEnabledRules = (rules: RedirectRule[]) =>
   rules.filter((rule) => rule.enabled).length
 
 export const countSyncedRules = (state: AppState) => getDynamicRulesForState(state).length
+
+export const countMatchedRules = (matches: MatchState) =>
+  Object.values(matches.records).filter((record) => record.count > 0).length
+
+export const getRuleMatchRecord = (matches: MatchState, ruleId: string) =>
+  matches.records[ruleId] ?? null
+
+export const isRuleMatched = (matches: MatchState, ruleId: string) =>
+  Boolean(matches.records[ruleId]?.count)
 
 export const getSyncSummary = (sync: SyncState) => {
   if (sync.lastError) {
@@ -286,11 +351,14 @@ export const importAppStateText = async (
 }
 
 const persistState = async (state: AppState) => {
+  const normalizedMatches = normalizeMatchState(state.matches, state.rules)
+
   if (hasChromeStorage()) {
     await chrome.storage.local.set({
       [STORAGE_KEYS.extensionEnabled]: state.extensionEnabled,
       [STORAGE_KEYS.rules]: state.rules,
       [STORAGE_KEYS.sync]: state.sync,
+      [STORAGE_KEYS.matches]: normalizedMatches,
     })
     return
   }
@@ -298,6 +366,7 @@ const persistState = async (state: AppState) => {
   localStorage.setItem(STORAGE_KEYS.extensionEnabled, JSON.stringify(state.extensionEnabled))
   localStorage.setItem(STORAGE_KEYS.rules, JSON.stringify(state.rules))
   localStorage.setItem(STORAGE_KEYS.sync, JSON.stringify(state.sync))
+  localStorage.setItem(STORAGE_KEYS.matches, JSON.stringify(normalizedMatches))
 }
 
 const hasChromeStorage = () =>
@@ -316,6 +385,58 @@ const readLocalJson = <T,>(key: string, fallback: T): T => {
     return JSON.parse(raw) as T
   } catch {
     return fallback
+  }
+}
+
+const normalizeMatchState = (value: unknown, rules: RedirectRule[]): MatchState => {
+  if (!value || typeof value !== 'object') {
+    return defaultMatchState()
+  }
+
+  const rawRecords =
+    'records' in (value as Record<string, unknown>) &&
+    typeof (value as Record<string, unknown>).records === 'object' &&
+    (value as Record<string, unknown>).records
+      ? ((value as Record<string, unknown>).records as Record<string, unknown>)
+      : {}
+
+  const allowedRuleIds = new Set(rules.map((rule) => rule.id))
+  const records = Object.fromEntries(
+    Object.entries(rawRecords)
+      .filter(([ruleId]) => allowedRuleIds.has(ruleId))
+      .flatMap(([ruleId, recordValue]) => {
+        if (!recordValue || typeof recordValue !== 'object') {
+          return []
+        }
+
+        const count = Number((recordValue as Record<string, unknown>).count)
+        const lastMatchedAt = (recordValue as Record<string, unknown>).lastMatchedAt
+        const lastRequestUrl = (recordValue as Record<string, unknown>).lastRequestUrl
+
+        if (!Number.isFinite(count) || count <= 0 || typeof lastMatchedAt !== 'string') {
+          return []
+        }
+
+        return [[
+          ruleId,
+          {
+            count,
+            lastMatchedAt,
+            lastRequestUrl: typeof lastRequestUrl === 'string' ? lastRequestUrl : null,
+          },
+        ]]
+      }),
+  )
+
+  const updatedAt =
+    'updatedAt' in (value as Record<string, unknown>) &&
+    typeof (value as Record<string, unknown>).updatedAt === 'string'
+      ? ((value as Record<string, unknown>).updatedAt as string)
+      : null
+
+  return {
+    records,
+    updatedAt,
   }
 }
 
