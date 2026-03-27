@@ -5,7 +5,25 @@ type ChromeStorageChangeListener = (
 
 type ChromeRuntimeListener = () => void | Promise<void>
 
+type ChromeDnrMatchedRuleListener = (info: {
+  request?: {
+    url?: string
+  }
+  rule: {
+    ruleId: number
+  }
+}) => void | Promise<void>
+
 declare const chrome: {
+  action?: {
+    setBadgeText(options: { text: string }): Promise<void>
+    setBadgeBackgroundColor(options: { color: string }): Promise<void>
+    setTitle(options: { title: string }): Promise<void>
+    setIcon(options: {
+      path?: Record<number, string>
+      imageData?: Record<number, ImageData>
+    }): Promise<void>
+  }
   storage: {
     local: {
       get(keys?: string[] | string | null): Promise<Record<string, unknown>>
@@ -22,6 +40,9 @@ declare const chrome: {
       removeRuleIds: number[]
       addRules: unknown[]
     }): Promise<void>
+    onRuleMatchedDebug?: {
+      addListener(callback: ChromeDnrMatchedRuleListener): void
+    }
   }
   runtime: {
     onInstalled: {
@@ -31,5 +52,6 @@ declare const chrome: {
       addListener(callback: ChromeRuntimeListener): void
     }
     openOptionsPage(): Promise<void>
+    getURL(path: string): string
   }
 }
