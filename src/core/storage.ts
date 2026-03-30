@@ -116,18 +116,20 @@ export const saveRule = async (
     rules: sortRules(nextRules),
   }
 
-  await persistState(nextState)
+  await persistRules(nextState.rules)
   return nextState
 }
 
 export const deleteRule = async (id: string): Promise<AppState> => {
   const state = await getAppState()
+  const nextRules = sortRules(state.rules.filter((rule) => rule.id !== id))
   const nextState = {
     ...state,
-    rules: sortRules(state.rules.filter((rule) => rule.id !== id)),
+    rules: nextRules,
+    matches: normalizeMatchState(state.matches, nextRules),
   }
 
-  await persistState(nextState)
+  await persistRulesAndMatches(nextState.rules, nextState.matches)
   return nextState
 }
 
@@ -151,7 +153,7 @@ export const setRuleEnabled = async (
     ),
   }
 
-  await persistState(nextState)
+  await persistRules(nextState.rules)
   return nextState
 }
 
@@ -164,7 +166,7 @@ export const setExtensionEnabled = async (
     extensionEnabled,
   }
 
-  await persistState(nextState)
+  await persistExtensionEnabled(nextState.extensionEnabled)
   return nextState
 }
 
@@ -207,7 +209,7 @@ export const recordRuleMatch = async (
     },
   }
 
-  await persistState(nextState)
+  await persistMatches(nextState.matches, nextState.rules)
   return nextState
 }
 
@@ -247,8 +249,8 @@ export const countEnabledRules = (rules: RedirectRule[]) =>
 
 export const countSyncedRules = (state: AppState) => getDynamicRulesForState(state).length
 
-export const countMatchedRules = (matches: MatchState) =>
-  Object.values(matches.records).filter((record) => record.count > 0).length
+export const countMatchedRules = (state: AppState) =>
+  state.rules.filter((rule) => rule.enabled && (state.matches.records[rule.id]?.count ?? 0) > 0).length
 
 export const getRuleMatchRecord = (matches: MatchState, ruleId: string) =>
   matches.records[ruleId] ?? null
@@ -339,9 +341,11 @@ export const importAppStateText = async (
         ? importedEnabled
         : currentState.extensionEnabled,
     rules: nextRules,
+    matches: normalizeMatchState(currentState.matches, nextRules),
   }
 
-  await persistState(nextState)
+  await persistRulesAndMatches(nextState.rules, nextState.matches)
+  await persistExtensionEnabled(nextState.extensionEnabled)
 
   return {
     state: nextState,
@@ -351,22 +355,47 @@ export const importAppStateText = async (
 }
 
 const persistState = async (state: AppState) => {
-  const normalizedMatches = normalizeMatchState(state.matches, state.rules)
+  await writeStorageItems({
+    [STORAGE_KEYS.extensionEnabled]: state.extensionEnabled,
+    [STORAGE_KEYS.rules]: state.rules,
+    [STORAGE_KEYS.sync]: state.sync,
+    [STORAGE_KEYS.matches]: normalizeMatchState(state.matches, state.rules),
+  })
+}
 
+const persistExtensionEnabled = async (extensionEnabled: boolean) =>
+  writeStorageItems({
+    [STORAGE_KEYS.extensionEnabled]: extensionEnabled,
+  })
+
+const persistRules = async (rules: RedirectRule[]) =>
+  writeStorageItems({
+    [STORAGE_KEYS.rules]: rules,
+  })
+
+const persistMatches = async (matches: MatchState, rules: RedirectRule[]) =>
+  writeStorageItems({
+    [STORAGE_KEYS.matches]: normalizeMatchState(matches, rules),
+  })
+
+const persistRulesAndMatches = async (
+  rules: RedirectRule[],
+  matches: MatchState,
+) =>
+  writeStorageItems({
+    [STORAGE_KEYS.rules]: rules,
+    [STORAGE_KEYS.matches]: normalizeMatchState(matches, rules),
+  })
+
+const writeStorageItems = async (items: Record<string, unknown>) => {
   if (hasChromeStorage()) {
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.extensionEnabled]: state.extensionEnabled,
-      [STORAGE_KEYS.rules]: state.rules,
-      [STORAGE_KEYS.sync]: state.sync,
-      [STORAGE_KEYS.matches]: normalizedMatches,
-    })
+    await chrome.storage.local.set(items)
     return
   }
 
-  localStorage.setItem(STORAGE_KEYS.extensionEnabled, JSON.stringify(state.extensionEnabled))
-  localStorage.setItem(STORAGE_KEYS.rules, JSON.stringify(state.rules))
-  localStorage.setItem(STORAGE_KEYS.sync, JSON.stringify(state.sync))
-  localStorage.setItem(STORAGE_KEYS.matches, JSON.stringify(normalizedMatches))
+  Object.entries(items).forEach(([key, value]) => {
+    localStorage.setItem(key, JSON.stringify(value))
+  })
 }
 
 const hasChromeStorage = () =>

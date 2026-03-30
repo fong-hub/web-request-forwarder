@@ -66,7 +66,7 @@ const syncActionState = async (state: AppState) => {
     return
   }
 
-  const matchedCount = countMatchedRules(state.matches)
+  const matchedCount = countMatchedRules(state)
   const badgeText = state.extensionEnabled && matchedCount > 0 ? String(matchedCount) : ''
 
   await chrome.action.setBadgeText({ text: badgeText })
@@ -184,5 +184,5 @@ chrome.declarativeNetRequest.onRuleMatchedDebug?.addListener(async (info) => {
     return
   }
 
-  await syncActionState(nextState)
+  await syncActionState(await getAppState())
 })

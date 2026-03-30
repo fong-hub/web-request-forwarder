@@ -41,7 +41,7 @@ npm run dev
 npm run build
 npm run lint
 npm run test
-npm run release:prepare -- 0.0.2
+npm run release:prepare -- 0.0.3
 ```
 
 ## 发布流程
@@ -49,7 +49,7 @@ npm run release:prepare -- 0.0.2
 使用发布脚本可以在本地准备 GitHub Release：
 
 ```bash
-npm run release:prepare -- 0.0.2
+npm run release:prepare -- 0.0.3
 ```
 
 脚本会自动完成以下步骤：
@@ -59,6 +59,15 @@ npm run release:prepare -- 0.0.2
 - 创建或更新 `releases/v<version>.md`
 - 将 `dist/` 打包为 `releases/request-forwarder-v<version>.zip`
 - 输出对应的 `gh release create ...` 命令
+
+如果使用 GitHub Actions，只需要推送版本标签，例如：
+
+```bash
+git tag -a v0.0.3 -m "Release v0.0.3"
+git push origin v0.0.3
+```
+
+工作流会自动安装依赖、执行校验、构建产物并创建 GitHub Release。
 
 ## 说明
 
