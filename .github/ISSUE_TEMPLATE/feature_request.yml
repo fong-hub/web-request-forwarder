@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an improvement for Request Forwarder
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: background
+    attributes:
+      label: Background
+      description: Describe the use case or problem
+      placeholder: What scenario are you trying to solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the expected solution
+      placeholder: What would you like Request Forwarder to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: value
+    attributes:
+      label: Expected value
+      description: Explain why this matters
+      placeholder: Why is this improvement useful?
+

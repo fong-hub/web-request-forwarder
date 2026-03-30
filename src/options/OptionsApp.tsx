@@ -264,7 +264,7 @@ function OptionsApp() {
                 {state ? `${countSyncedRules(state)} synced` : '0 synced'}
               </span>
               <span className="pill">
-                {state ? `${countMatchedRules(state.matches)} matched` : '0 matched'}
+                {state ? `${countMatchedRules(state)} matched` : '0 matched'}
               </span>
             </div>
           </div>
@@ -497,15 +497,15 @@ function OptionsApp() {
       </main>
 
       {editorOpen ? (
-        <div className="modal-backdrop" onClick={closeEditor}>
-          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-backdrop">
+          <div className="modal-card">
             <div className="modal-header">
               <div>
                 <p className="eyebrow">Rule editor</p>
                 <h3>{editingId ? 'Edit redirect rule' : 'Create redirect rule'}</h3>
               </div>
-              <button className="ghost-button" onClick={closeEditor}>
-                Close
+              <button className="icon-button" aria-label="Close editor" onClick={closeEditor} type="button">
+                ×
               </button>
             </div>
 
@@ -564,7 +564,7 @@ function OptionsApp() {
                   }
                   placeholder={
                     draft.matchType === 'regexFilter'
-                      ? '^https://rc\\.cvte\\.com/api/resource/([^/]+)/(.*)$'
+                      ? '^https://example\\.com/api/(.*)$'
                       : '||api.example.com/v1/'
                   }
                 />

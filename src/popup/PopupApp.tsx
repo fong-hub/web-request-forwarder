@@ -65,7 +65,7 @@ function PopupApp() {
           <div className="popup-board__title">
             <strong>Request Forwarder</strong>
             <span className="microcopy">
-              {state?.rules.length ?? 0} rule(s) · {state ? countMatchedRules(state.matches) : 0} matched
+              {state?.rules.length ?? 0} rule(s) · {state ? countMatchedRules(state) : 0} matched
             </span>
           </div>
           <div className="popup-board__actions">

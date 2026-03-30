@@ -46,7 +46,7 @@ npm run dev
 npm run build
 npm run lint
 npm run test
-npm run release:prepare -- 0.0.2
+npm run release:prepare -- 0.0.3
 ```
 
 ## Release Flow
@@ -54,7 +54,7 @@ npm run release:prepare -- 0.0.2
 Use the release helper to prepare a GitHub release locally:
 
 ```bash
-npm run release:prepare -- 0.0.2
+npm run release:prepare -- 0.0.3
 ```
 
 It will:
@@ -64,6 +64,15 @@ It will:
 - create or update `releases/v<version>.md`
 - package `dist/` as `releases/request-forwarder-v<version>.zip`
 - print the `gh release create ...` command for GitHub publishing
+
+If you use GitHub Actions, pushing a version tag is enough:
+
+```bash
+git tag -a v0.0.3 -m "Release v0.0.3"
+git push origin v0.0.3
+```
+
+The workflow will install dependencies, run validation, build assets, and create the GitHub release automatically.
 
 ## Notes
 
