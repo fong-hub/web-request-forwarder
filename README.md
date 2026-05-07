@@ -74,4 +74,5 @@ git push origin v0.0.3
 - 当前 MVP 直接使用 Chrome 的 `urlFilter`，没有额外封装自定义规则语言
 - 当前重定向动作主要支持绝对 URL 转发
 - 当前 `host_permissions` 仍为 `<all_urls>`，后续可以按实际业务域名继续收敛
-- 英文版文档见 [README.en.md](/Users/sunhuihuang/fong/work/web-request-forwarder/README.en.md)
+- 英文版文档见 [README.en.md](/README.en.md)
+- 更新日志见 [CHANGELOG.md](/CHANGELOG.md) / [CHANGELOG.zh.md](/CHANGELOG.zh.md)
