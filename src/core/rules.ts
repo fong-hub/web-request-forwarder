@@ -75,7 +75,7 @@ export const defaultRuleDraft = (): RuleDraft => ({
   matchValue: '||api.example.com/v1/',
   redirectType: 'url',
   redirectValue: 'https://staging.example.com/v1/',
-  resourceTypes: ['xmlhttprequest'],
+  resourceTypes: ['script'],
 })
 
 export const createExampleRule = (): RedirectRule => {
@@ -101,44 +101,44 @@ export const validateRuleDraft = (draft: RuleDraft): RuleValidationResult => {
   const errors: string[] = []
 
   if (!draft.name.trim()) {
-    errors.push('Rule name is required.')
+    errors.push('规则名称不能为空。')
   }
 
   if (!draft.matchValue.trim()) {
     errors.push(
       draft.matchType === 'regexFilter'
-        ? 'A regexFilter is required.'
-        : 'A DNR urlFilter is required.',
+        ? '正则过滤不能为空。'
+        : 'DNR urlFilter 不能为空。',
     )
   }
 
   if (draft.matchType === 'regexFilter') {
     const regexError = validateRegexPattern(draft.matchValue)
     if (regexError) {
-      errors.push(`regexFilter is invalid: ${regexError}`)
+      errors.push(`正则过滤无效：${regexError}`)
     }
   }
 
   if (!draft.redirectValue.trim()) {
     errors.push(
       draft.redirectType === 'regexSubstitution'
-        ? 'A regex substitution target is required.'
-        : 'A redirect URL is required.',
+        ? '正则替换目标不能为空。'
+        : '重定向 URL 不能为空。',
     )
   } else if (draft.redirectType === 'url' && !isHttpUrl(draft.redirectValue)) {
-    errors.push('Redirect URL must be an absolute http(s) URL.')
+    errors.push('重定向 URL 必须是绝对 http(s) URL。')
   }
 
   if (draft.redirectType === 'regexSubstitution' && draft.matchType !== 'regexFilter') {
-    errors.push('regexSubstitution can only be used together with regexFilter.')
+    errors.push('正则替换只能与正则过滤一起使用。')
   }
 
   if (draft.priority < 1) {
-    errors.push('Priority must be at least 1.')
+    errors.push('优先级至少为 1。')
   }
 
   if (draft.resourceTypes.length === 0) {
-    errors.push('Select at least one resource type.')
+    errors.push('请至少选择一种资源类型。')
   }
 
   return {
@@ -258,8 +258,8 @@ export const analyzeRules = (rules: RedirectRule[]): RuleDiagnostic[] => {
     diagnostics.push({
       id: 'no-enabled-rules',
       level: 'info',
-      title: 'No active redirect rules',
-      detail: 'The engine is enabled, but every stored rule is currently disabled.',
+      title: '无活动的重定向规则',
+      detail: '引擎已启用，但当前所有存储的规则均已禁用。',
       ruleIds: [],
     })
   }
@@ -280,8 +280,8 @@ export const analyzeRules = (rules: RedirectRule[]): RuleDiagnostic[] => {
     diagnostics.push({
       id: `duplicate-match:${matchKey}`,
       level: 'warning',
-      title: 'Multiple enabled rules share the same matcher',
-      detail: `The matcher "${matchKey}" appears on ${groupedRules.length} enabled rules. Higher priority rules will win, so this set deserves review.`,
+      title: '多条已启用规则共享相同的匹配器',
+      detail: `匹配器 "${matchKey}" 出现在 ${groupedRules.length} 条已启用规则中。高优先级规则将生效，因此建议检查此规则集。`,
       ruleIds: groupedRules.map((rule) => rule.id),
     })
 
@@ -300,8 +300,8 @@ export const analyzeRules = (rules: RedirectRule[]): RuleDiagnostic[] => {
       diagnostics.push({
         id: `same-priority:${matchKey}:${priority}`,
         level: 'warning',
-        title: 'Conflicting rules have the same priority',
-        detail: `Enabled rules with matcher "${matchKey}" all use priority ${priority}. Their execution order is harder to reason about.`,
+        title: '冲突规则具有相同优先级',
+        detail: `使用匹配器 "${matchKey}" 的已启用规则均使用优先级 ${priority}。它们的执行顺序难以预测。`,
         ruleIds: samePriorityRules.map((rule) => rule.id),
       })
     }
@@ -314,8 +314,8 @@ export const analyzeRules = (rules: RedirectRule[]): RuleDiagnostic[] => {
     diagnostics.push({
       id: 'invalid-enabled-targets',
       level: 'warning',
-      title: 'Some enabled rules have invalid redirect URLs',
-      detail: 'These rules should be fixed before relying on background sync.',
+      title: '部分已启用规则的重定向 URL 无效',
+      detail: '在依赖后台同步之前，应修复这些规则。',
       ruleIds: invalidUrlTargets.map((rule) => rule.id),
     })
   }
@@ -327,8 +327,8 @@ export const analyzeRules = (rules: RedirectRule[]): RuleDiagnostic[] => {
     diagnostics.push({
       id: 'invalid-regex-combinations',
       level: 'warning',
-      title: 'regexSubstitution requires regexFilter',
-      detail: 'These rules use regex substitution without a regex matcher and will not sync cleanly.',
+      title: '正则替换需要正则过滤',
+      detail: '这些规则使用了正则替换但没有正则匹配器，将无法正常同步。',
       ruleIds: invalidRegexTargets.map((rule) => rule.id),
     })
   }

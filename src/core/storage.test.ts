@@ -69,7 +69,7 @@ const waitForPendingWrites = async (
     await Promise.resolve()
   }
 
-  throw new Error(`Expected at least ${expectedCount} pending writes.`)
+  throw new Error(`预期至少有 ${expectedCount} 个待写入操作。`)
 }
 
 describe('storage', () => {

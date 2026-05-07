@@ -26,7 +26,7 @@ describe('rules', () => {
     })
 
     expect(result.valid).toBe(false)
-    expect(result.errors).toContain('Redirect URL must be an absolute http(s) URL.')
+    expect(result.errors).toContain('重定向 URL 必须是绝对 http(s) URL。')
   })
 
   it('converts a stored rule into a DNR rule', () => {

@@ -260,14 +260,14 @@ export const isRuleMatched = (matches: MatchState, ruleId: string) =>
 
 export const getSyncSummary = (sync: SyncState) => {
   if (sync.lastError) {
-    return `Last sync failed: ${sync.lastError}`
+    return `上次同步失败：${sync.lastError}`
   }
 
   if (!sync.lastSyncedAt) {
-    return 'Not synced yet'
+    return '尚未同步'
   }
 
-  return `Synced ${formatTime(sync.lastSyncedAt)}`
+  return `上次同步于 ${formatTime(sync.lastSyncedAt)}`
 }
 
 export const createDraftFromRule = (rule?: RedirectRule): RuleDraft =>
@@ -323,7 +323,7 @@ export const importAppStateText = async (
       : null
 
   if (!payload && !isRuleArray) {
-    throw new Error('Import JSON must be either an exported payload or an array of rules.')
+    throw new Error('导入的 JSON 必须是导出的完整数据或规则数组。')
   }
 
   const rulesSource = payload ? payload.rules : raw
