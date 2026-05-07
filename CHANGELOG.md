@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows a lightweight semantic versioning approach.
 
+## [0.0.4] - 2026-05-08
+
+### Added
+
+- Custom `CustomSelect` dropdown component to replace native `<select>`, preventing the dropdown from covering the current selection
+- Sticky table headers and zebra-striping for better long-list readability
+- Left-border color indicators on diagnostic cards to distinguish warning and info levels
+- `:active` press feedback and `:focus-visible` focus rings for improved keyboard accessibility
+
+### Changed
+
+- Full Chinese localization for the options page, popup, error messages, diagnostics, and extension tooltips
+- Default resource type for new rules changed from `xmlhttprequest` to `script`
+- Rule editor modal header now uses `position: sticky` while the form content scrolls independently
+- Match type and redirect type fields now sit side-by-side in a two-column layout
+- Helper text font size reduced from `0.88rem` to `0.8rem` for a more restrained visual hierarchy
+- Empty state text now centered with softer coloring
+- Table action buttons slightly compacted for better fit in narrow columns
+
+### Release Assets
+
+- `releases/request-forwarder-v0.0.4.zip`
+- `releases/v0.0.4.md`
+
 ## [0.0.3] - 2026-03-27
 
 ### Added
