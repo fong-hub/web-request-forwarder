@@ -75,8 +75,8 @@ const syncActionState = async (state: AppState) => {
   })
   await chrome.action.setTitle({
     title: state.extensionEnabled
-      ? `Request Forwarder${matchedCount > 0 ? ` · ${matchedCount} matched rule(s)` : ''}`
-      : 'Request Forwarder · globally disabled',
+      ? `请求转发器${matchedCount > 0 ? ` · ${matchedCount} 条规则已匹配` : ''}`
+      : '请求转发器 · 全局已禁用',
   })
 
   if (state.extensionEnabled) {

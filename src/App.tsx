@@ -15,29 +15,28 @@ function App() {
   }, [])
 
   const enabledRules = state ? countEnabledRules(state.rules) : 0
-  const syncSummary = state ? getSyncSummary(state.sync) : 'Loading extension state...'
+  const syncSummary = state ? getSyncSummary(state.sync) : '正在加载扩展状态...'
 
   return (
     <main className="app-shell app-shell--wide">
       <section className="hero-panel">
-        <p className="eyebrow">MV3 extension preview</p>
-        <h1>Request Forwarder now runs on DNR rules.</h1>
+        <p className="eyebrow">MV3 扩展预览</p>
+        <h1>请求转发器现已基于 DNR 规则运行。</h1>
         <p className="hero-copy">
-          This workspace page mirrors the extension data model: rule storage,
-          global enablement, and the latest background sync status.
+          此工作区页面展示了扩展的数据模型：规则存储、全局启用状态和最新的后台同步状态。
         </p>
         <div className="stat-grid">
           <article className="stat-card">
-            <span className="stat-label">Global switch</span>
-            <strong>{state?.extensionEnabled ? 'Enabled' : 'Disabled'}</strong>
+            <span className="stat-label">全局开关</span>
+            <strong>{state?.extensionEnabled ? '已启用' : '已禁用'}</strong>
           </article>
           <article className="stat-card">
-            <span className="stat-label">Active redirects</span>
+            <span className="stat-label">活动重定向</span>
             <strong>{enabledRules}</strong>
           </article>
           <article className="stat-card">
-            <span className="stat-label">Sync status</span>
-            <strong>{state?.sync.lastError ? 'Needs attention' : 'Ready'}</strong>
+            <span className="stat-label">同步状态</span>
+            <strong>{state?.sync.lastError ? '需要关注' : '就绪'}</strong>
           </article>
         </div>
       </section>
@@ -45,30 +44,30 @@ function App() {
       <section className="content-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">How it works</p>
-            <h2>Storage to transformer to browser dynamic rules</h2>
+            <p className="eyebrow">工作原理</p>
+            <h2>从存储到转换器再到浏览器动态规则</h2>
           </div>
           <span className="pill">{syncSummary}</span>
         </div>
 
         <div className="stack">
           <div className="note-card">
-            <h3>Current MVP scope</h3>
+            <h3>当前 MVP 范围</h3>
             <ul className="feature-list">
-              <li>Stores redirect rules in extension storage</li>
-              <li>Converts enabled rules into dynamic DNR entries</li>
-              <li>Syncs on install, startup, and storage changes</li>
-              <li>Provides popup and options pages for quick control</li>
+              <li>在扩展存储中保存重定向规则</li>
+              <li>将已启用规则转换为动态 DNR 条目</li>
+              <li>在安装、启动和存储变更时同步</li>
+              <li>提供弹出面板和选项页面用于快速控制</li>
             </ul>
           </div>
 
           <div className="note-card">
-            <h3>Next likely upgrades</h3>
+            <h3>下一步可能的升级</h3>
             <ul className="feature-list">
-              <li>Add import/export for rule sets</li>
-              <li>Add per-site pause and hit logging</li>
-              <li>Support richer conditions beyond urlFilter</li>
-              <li>Introduce rule conflict diagnostics in the UI</li>
+              <li>增加规则集的导入/导出功能</li>
+              <li>增加按站点暂停和命中日志功能</li>
+              <li>支持 urlFilter 之外的更丰富条件</li>
+              <li>在 UI 中引入规则冲突诊断</li>
             </ul>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import '../extension.css'
 import {
   countMatchedRules,
@@ -32,10 +32,69 @@ import {
 } from '../core/rules'
 
 const getMatchLabel = (rule: RedirectRule) =>
-  rule.matchType === 'regexFilter' ? 'Regex filter' : 'URL filter'
+  rule.matchType === 'regexFilter' ? '正则过滤' : 'URL 过滤'
 
 const getRedirectLabel = (rule: RedirectRule) =>
-  rule.redirectType === 'regexSubstitution' ? 'Regex substitution' : 'Redirect URL'
+  rule.redirectType === 'regexSubstitution' ? '正则替换' : '重定向 URL'
+
+function CustomSelect({
+  id,
+  value,
+  options,
+  onChange,
+  disabled,
+}: {
+  id?: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = options.find((opt) => opt.value === value)
+
+  useEffect(() => {
+    if (!open) return
+    const handle = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  return (
+    <div className="custom-select" ref={ref} data-open={open} data-disabled={disabled}>
+      <button
+        type="button"
+        id={id}
+        className="custom-select__trigger text-input"
+        onClick={() => !disabled && setOpen(!open)}
+      >
+        <span>{selected?.label ?? value}</span>
+        <span className="custom-select__arrow">▼</span>
+      </button>
+      {open && (
+        <div className="custom-select__dropdown">
+          {options.map((opt) => (
+            <div
+              key={opt.value}
+              className={`custom-select__option${opt.value === value ? ' custom-select__option--active' : ''}`}
+              onClick={() => {
+                onChange(opt.value)
+                setOpen(false)
+              }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function OptionsApp() {
   const [state, setState] = useState<AppState | null>(null)
@@ -83,7 +142,7 @@ function OptionsApp() {
 
   const dynamicRulesPreview = useMemo(() => {
     if (!state) {
-      return 'Loading...'
+      return '加载中...'
     }
 
     return JSON.stringify(getDynamicRulesForState(state), null, 2)
@@ -205,14 +264,14 @@ function OptionsApp() {
     link.click()
     link.remove()
     URL.revokeObjectURL(url)
-    setTransferMessage('Exported the current ruleset as JSON.')
+    setTransferMessage('已将当前规则集导出为 JSON。')
   }
 
   const handleImport = async (mode: 'replace' | 'merge') => {
     clearTransferStatus()
 
     if (!importText.trim()) {
-      setTransferError('Paste exported JSON before importing.')
+      setTransferError('导入前请先粘贴导出的 JSON。')
       return
     }
 
@@ -220,12 +279,12 @@ function OptionsApp() {
       const result = await importAppStateText(importText, mode)
       setState(result.state)
       setTransferMessage(
-        `Imported ${result.importedCount} rule(s) with ${result.rejectedCount} rejected item(s) using ${mode} mode.`,
+        `使用 ${mode} 模式导入了 ${result.importedCount} 条规则，拒绝了 ${result.rejectedCount} 条。`,
       )
       setImportText('')
     } catch (error) {
       setTransferError(
-        error instanceof Error ? error.message : 'Import failed due to invalid JSON.',
+        error instanceof Error ? error.message : '导入失败：JSON 格式无效。',
       )
     }
   }
@@ -247,38 +306,38 @@ function OptionsApp() {
         <section className="hero-panel">
           <div className="compact-hero compact-hero--stack">
             <div className="compact-hero__body">
-              <p className="eyebrow">Rules studio</p>
-              <h1 className="hero-title hero-title--inline">Manage DNR redirect rules</h1>
+              <p className="eyebrow">规则工作室</p>
+              <h1 className="hero-title hero-title--inline">管理 DNR 重定向规则</h1>
               <p className="hero-copy hero-copy--compact">
-                Supports both simple `urlFilter` redirects and regex substitutions.
+                支持简单的 urlFilter 重定向和正则替换。
               </p>
             </div>
             <div className="pill-row">
               <span className="pill">
-                {state ? `${state.rules.length} configured` : '0 configured'}
+                {state ? `${state.rules.length} 条已配置` : '0 条已配置'}
               </span>
               <span className="pill">
-                {state ? `${countEnabledRules(state.rules)} enabled` : '0 enabled'}
+                {state ? `${countEnabledRules(state.rules)} 条已启用` : '0 条已启用'}
               </span>
               <span className="pill">
-                {state ? `${countSyncedRules(state)} synced` : '0 synced'}
+                {state ? `${countSyncedRules(state)} 条已同步` : '0 条已同步'}
               </span>
               <span className="pill">
-                {state ? `${countMatchedRules(state)} matched` : '0 matched'}
+                {state ? `${countMatchedRules(state)} 条已匹配` : '0 条已匹配'}
               </span>
             </div>
           </div>
           <div className="stat-grid">
             <article className="stat-card">
-              <span className="stat-label">Engine</span>
-              <strong>{state?.extensionEnabled ? 'Enabled' : 'Paused'}</strong>
+              <span className="stat-label">引擎状态</span>
+              <strong>{state?.extensionEnabled ? '已启用' : '已暂停'}</strong>
             </article>
             <article className="stat-card">
-              <span className="stat-label">Configured rules</span>
+              <span className="stat-label">已配置规则</span>
               <strong>{state?.rules.length ?? 0}</strong>
             </article>
             <article className="stat-card">
-              <span className="stat-label">Enabled / synced</span>
+              <span className="stat-label">已启用 / 已同步</span>
               <strong>
                 {state ? `${countEnabledRules(state.rules)} / ${countSyncedRules(state)}` : '0 / 0'}
               </strong>
@@ -289,31 +348,31 @@ function OptionsApp() {
         <section className="content-panel">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">Control plane</p>
-              <h2>Manage the stored rule set</h2>
+              <p className="eyebrow">控制面板</p>
+              <h2>管理已存储的规则集</h2>
             </div>
             <div className="button-row">
               <button className="button" onClick={openCreateEditor}>
-                New rule
+                新建规则
               </button>
               <button
                 className="toggle-button"
                 data-active={String(Boolean(state?.extensionEnabled))}
                 onClick={toggleGlobalEngine}
               >
-                {state?.extensionEnabled ? 'Pause engine' : 'Enable engine'}
+                {state?.extensionEnabled ? '暂停引擎' : '启用引擎'}
               </button>
-              <span className="pill">{state ? getSyncSummary(state.sync) : 'Loading...'}</span>
+              <span className="pill">{state ? getSyncSummary(state.sync) : '加载中...'}</span>
             </div>
           </div>
 
           <section className="panel-card">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Stored rules</p>
-                <h3>Current redirect inventory</h3>
+                <p className="eyebrow">已存储规则</p>
+                <h3>当前重定向清单</h3>
               </div>
-              <span className="chip">{state?.rules.length ?? 0} records</span>
+              <span className="chip">{state?.rules.length ?? 0} 条记录</span>
             </div>
 
             {state?.rules.length ? (
@@ -321,12 +380,12 @@ function OptionsApp() {
                 <table className="rule-table">
                   <thead>
                     <tr>
-                      <th>Rule</th>
-                      <th>Match</th>
-                      <th>Redirect</th>
-                      <th>Types</th>
-                      <th>Status</th>
-                      <th>Actions</th>
+                      <th>规则</th>
+                      <th>匹配</th>
+                      <th>重定向</th>
+                      <th>类型</th>
+                      <th>状态</th>
+                      <th>操作</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -338,10 +397,10 @@ function OptionsApp() {
                         <td>
                           <div className="rule-cell">
                             <strong>{rule.name}</strong>
-                            <span className="microcopy">p{rule.priority} · dnr #{rule.dnrId}</span>
+                            <span className="microcopy">优先级 {rule.priority} · DNR #{rule.dnrId}</span>
                             {matchRecord ? (
                               <span className="rule-hit-badge">
-                                {matchRecord.count} hit · {new Date(matchRecord.lastMatchedAt).toLocaleString()}
+                                {matchRecord.count} 次命中 · {new Date(matchRecord.lastMatchedAt).toLocaleString()}
                               </span>
                             ) : null}
                           </div>
@@ -370,16 +429,16 @@ function OptionsApp() {
                               setState(nextState)
                             }}
                           >
-                            {rule.enabled ? 'Enabled' : 'Disabled'}
+                            {rule.enabled ? '已启用' : '已禁用'}
                           </button>
                         </td>
                         <td>
                           <div className="table-actions">
                             <button className="ghost-button" onClick={() => openEditEditor(rule)}>
-                              Edit
+                              编辑
                             </button>
                             <button className="danger-button" onClick={() => handleDelete(rule.id)}>
-                              Delete
+                              删除
                             </button>
                           </div>
                         </td>
@@ -391,7 +450,7 @@ function OptionsApp() {
               </div>
             ) : (
               <div className="empty-state">
-                No rules yet. Create one to start syncing redirect behavior into the browser.
+                暂无规则。创建一条规则以开始将重定向行为同步到浏览器。
               </div>
             )}
           </section>
@@ -400,26 +459,26 @@ function OptionsApp() {
             <section className="panel-card">
               <div className="section-heading">
                 <div>
-                  <p className="eyebrow">Dynamic output</p>
-                  <h3>What the browser receives</h3>
+                  <p className="eyebrow">动态输出</p>
+                  <h3>浏览器接收的内容</h3>
                 </div>
-                <span className="chip">{state?.rules.length ?? 0} stored rules</span>
+                <span className="chip">{state?.rules.length ?? 0} 条已存储规则</span>
               </div>
               <p className="helper-text">
-                Enabled records become Chrome dynamic rules. Current output:
+                已启用的记录会成为 Chrome 动态规则。当前输出：
                 {' '}
                 {state
-                  ? `${countSyncedRules(state)} synced rule(s) from ${state.rules.length} configured item(s).`
-                  : 'Loading current counts.'}
+                  ? `${countSyncedRules(state)} 条已同步规则，来自 ${state.rules.length} 条已配置项。`
+                  : '正在加载当前数量。'}
               </p>
               <pre className="code-block">{dynamicRulesPreview}</pre>
 
               <div className="section-heading" style={{ marginTop: 20 }}>
                 <div>
-                  <p className="eyebrow">Diagnostics</p>
-                  <h3>Rule health checks</h3>
+                  <p className="eyebrow">诊断</p>
+                  <h3>规则健康检查</h3>
                 </div>
-                <span className="chip">{diagnostics.length} signals</span>
+                <span className="chip">{diagnostics.length} 个信号</span>
               </div>
 
               {diagnostics.length > 0 ? (
@@ -435,7 +494,7 @@ function OptionsApp() {
                       <p className="helper-text">{diagnostic.detail}</p>
                       {diagnostic.ruleIds.length > 0 ? (
                         <div className="microcopy">
-                          Affected rules: {diagnostic.ruleIds.join(', ')}
+                          受影响规则：{diagnostic.ruleIds.join(', ')}
                         </div>
                       ) : null}
                     </div>
@@ -443,7 +502,7 @@ function OptionsApp() {
                 </div>
               ) : (
                 <div className="notice">
-                  No obvious rule conflicts detected in the current ruleset.
+                  当前规则集中未检测到明显的规则冲突。
                 </div>
               )}
             </section>
@@ -451,41 +510,41 @@ function OptionsApp() {
             <section className="panel-card">
               <div className="section-heading">
                 <div>
-                  <p className="eyebrow">Transfer</p>
-                  <h3>Import and export rulesets</h3>
+                  <p className="eyebrow">导入/导出</p>
+                  <h3>导入和导出规则集</h3>
                 </div>
                 <div className="button-row">
                   <button className="ghost-button" onClick={handleExport}>
-                    Export JSON
+                    导出 JSON
                   </button>
                   <label className="ghost-button file-button">
-                    Load file
+                    加载文件
                     <input type="file" accept="application/json" onChange={handleFileImport} />
                   </label>
                 </div>
               </div>
 
               <div className="field">
-                <label htmlFor="import-json">Import payload</label>
+                <label htmlFor="import-json">导入内容</label>
                 <textarea
                   id="import-json"
                   className="text-input text-area"
                   value={importText}
                   onChange={(event) => setImportText(event.target.value)}
-                  placeholder="Paste exported JSON or an array of redirect rules here."
+                  placeholder="在此粘贴导出的 JSON 或重定向规则数组。"
                 />
                 <p className="helper-text">
-                  `Replace` overwrites the stored ruleset. `Merge` appends imported rules
-                  and reassigns dynamic rule IDs to keep the final set consistent.
+                  「替换」会覆盖已存储的规则集。「合并」会将导入的规则追加到现有规则集，
+                  并重新分配动态规则 ID，以保持最终规则集的一致性。
                 </p>
               </div>
 
               <div className="button-row">
                 <button className="button" onClick={() => handleImport('merge')}>
-                  Merge import
+                  合并导入
                 </button>
                 <button className="ghost-button" onClick={() => handleImport('replace')}>
-                  Replace import
+                  替换导入
                 </button>
               </div>
 
@@ -501,17 +560,17 @@ function OptionsApp() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <p className="eyebrow">Rule editor</p>
-                <h3>{editingId ? 'Edit redirect rule' : 'Create redirect rule'}</h3>
+                <p className="eyebrow">规则编辑器</p>
+                <h3>{editingId ? '编辑重定向规则' : '创建重定向规则'}</h3>
               </div>
-              <button className="icon-button" aria-label="Close editor" onClick={closeEditor} type="button">
+              <button className="icon-button" aria-label="关闭编辑器" onClick={closeEditor} type="button">
                 ×
               </button>
             </div>
 
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="field">
-                <label htmlFor="name">Rule name</label>
+                <label htmlFor="name">规则名称</label>
                 <input
                   id="name"
                   className="text-input"
@@ -522,35 +581,53 @@ function OptionsApp() {
                       name: event.target.value,
                     }))
                   }
-                  placeholder="Mock catalog API"
+                  placeholder="模拟目录 API"
                 />
               </div>
 
-              <div className="field">
-                <label htmlFor="match-type">Match type</label>
-                <select
-                  id="match-type"
-                  className="text-input"
-                  value={draft.matchType}
-                  onChange={(event) =>
-                    updateDraft((current) => ({
-                      ...current,
-                      matchType: event.target.value as MatchType,
-                      redirectType:
-                        event.target.value === 'regexFilter'
-                          ? current.redirectType
-                          : 'url',
-                    }))
-                  }
-                >
-                  <option value="urlFilter">urlFilter</option>
-                  <option value="regexFilter">regexFilter</option>
-                </select>
+              <div className="row">
+                <div className="field" style={{ flex: 1 }}>
+                  <label htmlFor="match-type">匹配类型</label>
+                  <CustomSelect
+                    id="match-type"
+                    value={draft.matchType}
+                    options={[
+                      { value: 'urlFilter', label: 'urlFilter' },
+                      { value: 'regexFilter', label: 'regexFilter' },
+                    ]}
+                    onChange={(value) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        matchType: value as MatchType,
+                        redirectType: value === 'regexFilter' ? current.redirectType : 'url',
+                      }))
+                    }
+                  />
+                </div>
+
+                <div className="field" style={{ flex: 1 }}>
+                  <label htmlFor="redirect-type">重定向类型</label>
+                  <CustomSelect
+                    id="redirect-type"
+                    value={draft.redirectType}
+                    options={[
+                      { value: 'url', label: '固定 URL' },
+                      { value: 'regexSubstitution', label: '正则替换' },
+                    ]}
+                    onChange={(value) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        redirectType: value as RedirectType,
+                      }))
+                    }
+                    disabled={draft.matchType !== 'regexFilter'}
+                  />
+                </div>
               </div>
 
               <div className="field">
                 <label htmlFor="match-value">
-                  {draft.matchType === 'regexFilter' ? 'Regex filter' : 'DNR urlFilter'}
+                  {draft.matchType === 'regexFilter' ? '正则过滤' : 'DNR urlFilter'}
                 </label>
                 <input
                   id="match-value"
@@ -570,35 +647,16 @@ function OptionsApp() {
                 />
                 <p className="helper-text">
                   {draft.matchType === 'regexFilter'
-                    ? 'Use a JavaScript-compatible regex. Capture groups can be reused in regexSubstitution redirects.'
-                    : "This value is passed directly to Chrome's declarativeNetRequest urlFilter."}
+                    ? '使用兼容 JavaScript 的正则表达式。捕获组可在正则替换重定向中复用。'
+                    : '该值会直接传递给 Chrome 的 declarativeNetRequest urlFilter。'}
                 </p>
-              </div>
-
-              <div className="field">
-                <label htmlFor="redirect-type">Redirect type</label>
-                <select
-                  id="redirect-type"
-                  className="text-input"
-                  value={draft.redirectType}
-                  onChange={(event) =>
-                    updateDraft((current) => ({
-                      ...current,
-                      redirectType: event.target.value as RedirectType,
-                    }))
-                  }
-                  disabled={draft.matchType !== 'regexFilter'}
-                >
-                  <option value="url">Fixed URL</option>
-                  <option value="regexSubstitution">Regex substitution</option>
-                </select>
               </div>
 
               <div className="field">
                 <label htmlFor="redirect-value">
                   {draft.redirectType === 'regexSubstitution'
-                    ? 'Regex substitution target'
-                    : 'Redirect URL'}
+                    ? '正则替换目标'
+                    : '重定向 URL'}
                 </label>
                 <input
                   id="redirect-value"
@@ -618,14 +676,14 @@ function OptionsApp() {
                 />
                 <p className="helper-text">
                   {draft.redirectType === 'regexSubstitution'
-                    ? 'You can type `$1`, `$2` here. The extension will normalize them to Chrome DNR regex substitution syntax.'
-                    : 'Use an absolute http(s) URL.'}
+                    ? '您可以在此输入 `$1`、`$2` 等。扩展程序会将其规范化为 Chrome DNR 正则替换语法。'
+                    : '请使用绝对 http(s) URL。'}
                 </p>
               </div>
 
               <div className="row">
                 <div className="field" style={{ flex: 1 }}>
-                  <label htmlFor="priority">Priority</label>
+                  <label htmlFor="priority">优先级</label>
                   <input
                     id="priority"
                     className="number-input"
@@ -652,12 +710,12 @@ function OptionsApp() {
                     }))
                   }
                 >
-                  {draft.enabled ? 'Rule enabled' : 'Rule disabled'}
+                  {draft.enabled ? '规则已启用' : '规则已禁用'}
                 </button>
               </div>
 
               <div className="field">
-                <div className="fieldset-title">Resource types</div>
+                <div className="fieldset-title">资源类型</div>
                 <div className="checkbox-grid">
                   {resourceTypeOptions.map((resourceType) => (
                     <label className="checkbox-card" key={resourceType}>
@@ -682,10 +740,10 @@ function OptionsApp() {
 
               <div className="button-row">
                 <button className="button" type="submit">
-                  {editingId ? 'Save rule' : 'Create rule'}
+                  {editingId ? '保存规则' : '创建规则'}
                 </button>
                 <button className="ghost-button" type="button" onClick={resetEditorDraft}>
-                  {editingId ? 'Restore' : 'Reset'}
+                  {editingId ? '恢复' : '重置'}
                 </button>
               </div>
             </form>

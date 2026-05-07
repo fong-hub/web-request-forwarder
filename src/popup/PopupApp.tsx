@@ -13,10 +13,10 @@ import {
 import { type RedirectRule } from '../core/rules'
 
 const getMatchLabel = (rule: RedirectRule) =>
-  rule.matchType === 'regexFilter' ? 'Regex' : 'URL'
+  rule.matchType === 'regexFilter' ? '正则' : 'URL'
 
 const getRedirectLabel = (rule: RedirectRule) =>
-  rule.redirectType === 'regexSubstitution' ? 'Subst' : 'URL'
+  rule.redirectType === 'regexSubstitution' ? '替换' : 'URL'
 
 function PopupApp() {
   const [state, setState] = useState<AppState | null>(null)
@@ -65,7 +65,7 @@ function PopupApp() {
           <div className="popup-board__title">
             <strong>Request Forwarder</strong>
             <span className="microcopy">
-              {state?.rules.length ?? 0} rule(s) · {state ? countMatchedRules(state) : 0} matched
+              {state?.rules.length ?? 0} 条规则 · {state ? countMatchedRules(state) : 0} 次匹配
             </span>
           </div>
           <div className="popup-board__actions">
@@ -74,10 +74,10 @@ function PopupApp() {
               data-active={String(Boolean(state?.extensionEnabled))}
               onClick={toggleExtension}
             >
-              {state?.extensionEnabled ? 'On' : 'Off'}
+              {state?.extensionEnabled ? '开' : '关'}
             </button>
             <button className="button button--compact" onClick={openOptionsPage}>
-              Open app
+              打开应用
             </button>
           </div>
         </div>
@@ -87,10 +87,10 @@ function PopupApp() {
             <table className="rule-table rule-table--popup-compact rule-table--popup-head">
               <thead>
                 <tr>
-                  <th>Rule</th>
-                  <th>Match</th>
-                  <th>Redirect</th>
-                  <th>Status</th>
+                  <th>规则</th>
+                  <th>匹配</th>
+                  <th>重定向</th>
+                  <th>状态</th>
                 </tr>
               </thead>
             </table>
@@ -139,7 +139,7 @@ function PopupApp() {
                               setState(nextState)
                             }}
                           >
-                            {rule.enabled ? 'On' : 'Off'}
+                            {rule.enabled ? '开' : '关'}
                           </button>
                         </td>
                       </tr>
@@ -150,7 +150,7 @@ function PopupApp() {
             </div>
           </div>
         ) : (
-          <div className="empty-state empty-state--compact">No rules configured yet.</div>
+          <div className="empty-state empty-state--compact">尚未配置任何规则。</div>
         )}
       </section>
     </main>
