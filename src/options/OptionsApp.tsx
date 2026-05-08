@@ -6,6 +6,7 @@ import {
   countSyncedRules,
   createDraftFromRule,
   deleteRule,
+  dismissUpdate,
   exportAppStateText,
   getAppState,
   getDiagnosticsForState,
@@ -344,6 +345,35 @@ function OptionsApp() {
             </article>
           </div>
         </section>
+
+        {state?.update && !state.update.dismissed ? (
+          <section className="update-banner">
+            <div className="update-banner__body">
+              <strong>发现新版本 {state.update.latestVersion}</strong>
+              <p className="helper-text">
+                当前版本 {state.update.currentVersion}，建议前往 GitHub 下载更新。
+              </p>
+            </div>
+            <div className="button-row">
+              <button
+                className="button button--compact"
+                onClick={() => chrome.tabs?.create({ url: state.update!.htmlUrl })}
+              >
+                查看更新
+              </button>
+              <button
+                className="ghost-button button--compact"
+                onClick={async () => {
+                  await dismissUpdate()
+                  const nextState = await getAppState()
+                  setState(nextState)
+                }}
+              >
+                忽略
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <section className="content-panel">
           <div className="section-heading">

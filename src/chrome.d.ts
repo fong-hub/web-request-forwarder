@@ -5,6 +5,8 @@ type ChromeStorageChangeListener = (
 
 type ChromeRuntimeListener = () => void | Promise<void>
 
+type ChromeAlarmListener = (alarm: { name: string }) => void | Promise<void>
+
 type ChromeDnrMatchedRuleListener = (info: {
   request?: {
     url?: string
@@ -13,6 +15,10 @@ type ChromeDnrMatchedRuleListener = (info: {
     ruleId: number
   }
 }) => void | Promise<void>
+
+type ChromeManifest = {
+  version: string
+}
 
 declare const chrome: {
   action?: {
@@ -53,5 +59,15 @@ declare const chrome: {
     }
     openOptionsPage(): Promise<void>
     getURL(path: string): string
+    getManifest(): ChromeManifest
+  }
+  alarms?: {
+    onAlarm: {
+      addListener(callback: ChromeAlarmListener): void
+    }
+    create(name: string, options: { periodInMinutes: number }): Promise<void>
+  }
+  tabs?: {
+    create(options: { url: string }): Promise<void>
   }
 }

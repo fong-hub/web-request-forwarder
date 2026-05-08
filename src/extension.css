@@ -885,6 +885,45 @@ h3 {
   color: var(--muted);
 }
 
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(196, 95, 45, 0.25);
+  background: rgba(196, 95, 45, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.update-banner__body {
+  display: grid;
+  gap: 4px;
+}
+
+.update-banner strong {
+  color: var(--accent-deep);
+  font-size: 1rem;
+}
+
+.update-banner .helper-text {
+  font-size: 0.82rem;
+}
+
+.update-banner--popup {
+  margin-top: 0;
+  padding: 8px 12px;
+  border-radius: 14px;
+  gap: 10px;
+}
+
+.update-banner--popup span {
+  font-size: 0.85rem;
+  color: var(--accent-deep);
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

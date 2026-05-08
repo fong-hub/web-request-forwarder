@@ -82,6 +82,15 @@ function PopupApp() {
           </div>
         </div>
 
+        {state?.update && !state.update.dismissed ? (
+          <div className="update-banner update-banner--popup">
+            <span>发现新版本 {state.update.latestVersion}</span>
+            <button className="button button--compact" onClick={openOptionsPage}>
+              查看
+            </button>
+          </div>
+        ) : null}
+
         {state?.rules.length ? (
           <div className="table-shell table-shell--popup table-shell--popup-compact">
             <table className="rule-table rule-table--popup-compact rule-table--popup-head">
