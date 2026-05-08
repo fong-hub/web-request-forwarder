@@ -12,6 +12,7 @@ import {
   type RuleDraft,
   type RuleDiagnostic,
 } from './rules'
+import { getUpdateInfo, type UpdateInfo } from './update'
 
 const STORAGE_KEYS = {
   extensionEnabled: 'request-forwarder.extension-enabled',
@@ -19,6 +20,9 @@ const STORAGE_KEYS = {
   sync: 'request-forwarder.sync',
   matches: 'request-forwarder.matches',
 } as const
+
+export { type UpdateInfo } from './update'
+export { dismissUpdate } from './update'
 
 export type SyncState = {
   lastSyncedAt: string | null
@@ -41,6 +45,7 @@ export type AppState = {
   rules: RedirectRule[]
   sync: SyncState
   matches: MatchState
+  update: UpdateInfo | null
 }
 
 export type ExportPayload = {
@@ -78,6 +83,7 @@ export const getAppState = async (): Promise<AppState> => {
       rules,
       sync: isSyncState(syncValue) ? syncValue : defaultSyncState(),
       matches: normalizeMatchState(matchesValue, rules),
+      update: await getUpdateInfo(),
     }
   }
 
@@ -89,6 +95,7 @@ export const getAppState = async (): Promise<AppState> => {
     rules,
     sync: readLocalJson(STORAGE_KEYS.sync, defaultSyncState()),
     matches: normalizeMatchState(readLocalJson(STORAGE_KEYS.matches, defaultMatchState()), rules),
+    update: await getUpdateInfo(),
   }
 }
 

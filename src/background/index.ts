@@ -7,6 +7,7 @@ import {
   setSyncState,
   type AppState,
 } from '../core/storage'
+import { checkForUpdate, saveUpdateInfo } from '../core/update'
 
 const ICON_PATHS = {
   16: 'src/assets/icon-16.png',
@@ -142,6 +143,12 @@ const initialize = async () => {
   await initializeStorage()
   const state = await syncDynamicRules()
   await syncActionState(state)
+  await runUpdateCheck()
+}
+
+const runUpdateCheck = async () => {
+  const info = await checkForUpdate()
+  await saveUpdateInfo(info)
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -150,6 +157,16 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(async () => {
   await initialize()
+})
+
+chrome.alarms?.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === 'check-update') {
+    await runUpdateCheck()
+  }
+})
+
+chrome.runtime.onInstalled.addListener(async () => {
+  await chrome.alarms?.create('check-update', { periodInMinutes: 60 * 24 })
 })
 
 chrome.storage.onChanged.addListener(
