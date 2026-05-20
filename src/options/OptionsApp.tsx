@@ -106,6 +106,9 @@ function OptionsApp() {
   const [importText, setImportText] = useState('')
   const [transferMessage, setTransferMessage] = useState<string | null>(null)
   const [transferError, setTransferError] = useState<string | null>(null)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [affectedTabsCount, setAffectedTabsCount] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
 
   const closeEditor = () => {
     setEditorOpen(false)
@@ -125,6 +128,58 @@ function OptionsApp() {
       load()
     })
   }, [])
+
+  useEffect(() => {
+    const loadAutoRefresh = async () => {
+      if (chrome.runtime) {
+        const response = await chrome.runtime.sendMessage({ type: 'getAutoRefresh' }) as { enabled: boolean }
+        setAutoRefresh(response.enabled)
+      }
+    }
+
+    loadAutoRefresh()
+  }, [])
+
+  useEffect(() => {
+    const updateAffectedCount = async () => {
+      if (chrome.runtime) {
+        const response = await chrome.runtime.sendMessage({ type: 'getAffectedTabsCount' }) as { count: number }
+        setAffectedTabsCount(response.count)
+      }
+    }
+
+    updateAffectedCount()
+    const interval = setInterval(updateAffectedCount, 2000)
+    return () => clearInterval(interval)
+  }, [state?.rules])
+
+  const handleRefreshAffected = async () => {
+    if (!chrome.runtime || refreshing) {
+      return
+    }
+
+    setRefreshing(true)
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'refreshAffectedTabs' }) as { count: number }
+      setTransferMessage(`已刷新 ${response.count} 个受影响的标签页。`)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleAutoRefreshToggle = async () => {
+    if (!chrome.runtime) {
+      return
+    }
+
+    const nextEnabled = !autoRefresh
+    const response = await chrome.runtime.sendMessage({
+      type: 'setAutoRefresh',
+      enabled: nextEnabled,
+    }) as { enabled: boolean }
+    setAutoRefresh(response.enabled)
+    setTransferMessage(response.enabled ? '已启用自动热更新。规则变更后将自动刷新受影响的标签页。' : '已禁用自动热更新。')
+  }
 
   useEffect(() => {
     if (!editorOpen) {
@@ -391,6 +446,20 @@ function OptionsApp() {
                 onClick={toggleGlobalEngine}
               >
                 {state?.extensionEnabled ? '暂停引擎' : '启用引擎'}
+              </button>
+              <button
+                className="toggle-button"
+                data-active={String(autoRefresh)}
+                onClick={handleAutoRefreshToggle}
+              >
+                {autoRefresh ? '自动热更新已开' : '自动热更新已关'}
+              </button>
+              <button
+                className="ghost-button"
+                onClick={handleRefreshAffected}
+                disabled={refreshing}
+              >
+                {refreshing ? '刷新中...' : affectedTabsCount > 0 ? `刷新受影响标签 (${affectedTabsCount})` : '刷新受影响标签'}
               </button>
               <span className="pill">{state ? getSyncSummary(state.sync) : '加载中...'}</span>
             </div>

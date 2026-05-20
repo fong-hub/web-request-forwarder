@@ -20,6 +20,9 @@ const getRedirectLabel = (rule: RedirectRule) =>
 
 function PopupApp() {
   const [state, setState] = useState<AppState | null>(null)
+  const [affectedTabsCount, setAffectedTabsCount] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
 
   useEffect(() => {
     document.documentElement.dataset.surface = 'popup'
@@ -58,6 +61,46 @@ function PopupApp() {
     }
   }
 
+  useEffect(() => {
+    const updateAffectedCount = async () => {
+      if (chrome.runtime) {
+        const response = await chrome.runtime.sendMessage({ type: 'getAffectedTabsCount' }) as { count: number }
+        setAffectedTabsCount(response.count)
+        const autoRefreshResponse = await chrome.runtime.sendMessage({ type: 'getAutoRefresh' }) as { enabled: boolean }
+        setAutoRefresh(autoRefreshResponse.enabled)
+      }
+    }
+
+    updateAffectedCount()
+    const interval = setInterval(updateAffectedCount, 2000)
+    return () => clearInterval(interval)
+  }, [state?.rules])
+
+  const handleRefreshAffected = async () => {
+    if (!chrome.runtime || refreshing) {
+      return
+    }
+
+    setRefreshing(true)
+    try {
+      await chrome.runtime.sendMessage({ type: 'refreshAffectedTabs' })
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleAutoRefreshToggle = async () => {
+    if (!chrome.runtime) {
+      return
+    }
+
+    const response = await chrome.runtime.sendMessage({
+      type: 'setAutoRefresh',
+      enabled: !autoRefresh,
+    }) as { enabled: boolean }
+    setAutoRefresh(response.enabled)
+  }
+
   return (
     <main className="app-shell app-shell--popup app-shell--popup-compact">
       <section className="popup-board">
@@ -75,6 +118,22 @@ function PopupApp() {
               onClick={toggleExtension}
             >
               {state?.extensionEnabled ? '开' : '关'}
+            </button>
+            <button
+              className="toggle-button toggle-button--compact"
+              data-active={String(autoRefresh)}
+              onClick={handleAutoRefreshToggle}
+              title={autoRefresh ? '关闭自动热更新' : '开启自动热更新'}
+            >
+              {autoRefresh ? '热' : '冷'}
+            </button>
+            <button
+              className="button button--compact"
+              onClick={handleRefreshAffected}
+              disabled={refreshing}
+              title={affectedTabsCount > 0 ? `刷新 ${affectedTabsCount} 个受影响标签页` : '刷新受影响标签页'}
+            >
+              {refreshing ? '刷' : affectedTabsCount > 0 ? `刷(${affectedTabsCount})` : '刷'}
             </button>
             <button className="button button--compact" onClick={openOptionsPage}>
               打开应用

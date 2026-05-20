@@ -7,6 +7,17 @@ type ChromeRuntimeListener = () => void | Promise<void>
 
 type ChromeAlarmListener = (alarm: { name: string }) => void | Promise<void>
 
+type ChromeMessageListener = (
+  message: { type: string; enabled?: boolean },
+  sender: unknown,
+  sendResponse: (response: unknown) => void,
+) => void | true
+
+type ChromeTab = {
+  id?: number
+  url?: string
+}
+
 type ChromeDnrMatchedRuleListener = (info: {
   request?: {
     url?: string
@@ -60,6 +71,10 @@ declare const chrome: {
     openOptionsPage(): Promise<void>
     getURL(path: string): string
     getManifest(): ChromeManifest
+    sendMessage(message: unknown): Promise<unknown>
+    onMessage: {
+      addListener(callback: ChromeMessageListener): void
+    }
   }
   alarms?: {
     onAlarm: {
@@ -69,5 +84,7 @@ declare const chrome: {
   }
   tabs?: {
     create(options: { url: string }): Promise<void>
+    query(queryInfo: Record<string, unknown>): Promise<ChromeTab[]>
+    reload(tabId: number, reloadProperties?: { bypassCache?: boolean }): Promise<void>
   }
 }

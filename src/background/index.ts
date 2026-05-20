@@ -17,7 +17,7 @@ const ICON_PATHS = {
 
 let disabledIconCache: Promise<Record<number, ImageData>> | null = null
 
-const syncDynamicRules = async () => {
+const performSyncDynamicRules = async () => {
   const state = await getAppState()
 
   if (
@@ -60,6 +60,16 @@ const syncDynamicRules = async () => {
       sync: nextSync,
     }
   }
+}
+
+const syncDynamicRules = async () => {
+  const state = await performSyncDynamicRules()
+
+  if (autoRefreshEnabled) {
+    await refreshAffectedTabs()
+  }
+
+  return state
 }
 
 const syncActionState = async (state: AppState) => {
@@ -202,4 +212,83 @@ chrome.declarativeNetRequest.onRuleMatchedDebug?.addListener(async (info) => {
   }
 
   await syncActionState(await getAppState())
+})
+
+type ChromeTab = {
+  id?: number
+  url?: string
+}
+
+const getAffectedTabs = async (): Promise<ChromeTab[]> => {
+  if (!chrome.tabs?.query) {
+    return []
+  }
+
+  const state = await getAppState()
+  const enabledRules = state.rules.filter((rule) => rule.enabled)
+
+  if (enabledRules.length === 0) {
+    return []
+  }
+
+  const tabs = await chrome.tabs.query({}) as ChromeTab[]
+
+  return tabs.filter((tab) => {
+    if (!tab.url) {
+      return false
+    }
+
+    return enabledRules.some((rule) => {
+      if (rule.matchType === 'urlFilter') {
+        return tab.url!.includes(rule.matchValue.replace(/^\|+/, '').replace(/\|+$/, ''))
+      }
+
+      try {
+        const regex = new RegExp(rule.matchValue)
+        return regex.test(tab.url!)
+      } catch {
+        return false
+      }
+    })
+  })
+}
+
+export const refreshAffectedTabs = async (): Promise<number> => {
+  const tabs = await getAffectedTabs()
+
+  if (chrome.tabs?.reload) {
+    for (const tab of tabs) {
+      if (tab.id) {
+        await chrome.tabs.reload(tab.id, { bypassCache: true })
+      }
+    }
+  }
+
+  return tabs.length
+}
+
+let autoRefreshEnabled = false
+
+export const setAutoRefresh = (enabled: boolean) => {
+  autoRefreshEnabled = enabled
+}
+
+export const getAutoRefresh = () => autoRefreshEnabled
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  (async () => {
+    if (message.type === 'refreshAffectedTabs') {
+      const count = await refreshAffectedTabs()
+      sendResponse({ count })
+    } else if (message.type === 'getAffectedTabsCount') {
+      const tabs = await getAffectedTabs()
+      sendResponse({ count: tabs.length })
+    } else if (message.type === 'setAutoRefresh') {
+      setAutoRefresh(message.enabled ?? false)
+      sendResponse({ enabled: autoRefreshEnabled })
+    } else if (message.type === 'getAutoRefresh') {
+      sendResponse({ enabled: autoRefreshEnabled })
+    }
+  })()
+  return true
 })
