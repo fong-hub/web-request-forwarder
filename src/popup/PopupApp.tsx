@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react'
 import '../extension.css'
 import {
-  countMatchedRules,
   getAppState,
-  getRuleMatchRecord,
-  isRuleMatched,
   setExtensionEnabled,
   setRuleEnabled,
   subscribeToState,
@@ -23,6 +20,7 @@ function PopupApp() {
   const [affectedTabsCount, setAffectedTabsCount] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [currentTabMatches, setCurrentTabMatches] = useState<{ total: number; rules: Record<string, number> }>({ total: 0, rules: {} })
 
   useEffect(() => {
     document.documentElement.dataset.surface = 'popup'
@@ -68,6 +66,8 @@ function PopupApp() {
         setAffectedTabsCount(response.count)
         const autoRefreshResponse = await chrome.runtime.sendMessage({ type: 'getAutoRefresh' }) as { enabled: boolean }
         setAutoRefresh(autoRefreshResponse.enabled)
+        const matchResponse = await chrome.runtime.sendMessage({ type: 'getCurrentTabMatches' }) as { total: number; rules: Record<string, number> }
+        setCurrentTabMatches(matchResponse)
       }
     }
 
@@ -108,7 +108,7 @@ function PopupApp() {
           <div className="popup-board__title">
             <strong>Request Forwarder</strong>
             <span className="microcopy">
-              {state?.rules.length ?? 0} 条规则 · {state ? countMatchedRules(state) : 0} 次匹配
+              {state?.rules.length ?? 0} 条规则 · 当前页面命中 {currentTabMatches.total} 次
             </span>
           </div>
           <div className="popup-board__actions">
@@ -123,9 +123,9 @@ function PopupApp() {
               className="toggle-button toggle-button--compact"
               data-active={String(autoRefresh)}
               onClick={handleAutoRefreshToggle}
-              title={autoRefresh ? '关闭自动热更新' : '开启自动热更新'}
+              title={autoRefresh ? '关闭规则变更后自动刷新' : '开启规则变更后自动刷新'}
             >
-              {autoRefresh ? '热' : '冷'}
+              {autoRefresh ? '自动刷新：开' : '自动刷新：关'}
             </button>
             <button
               className="button button--compact"
@@ -133,7 +133,7 @@ function PopupApp() {
               disabled={refreshing}
               title={affectedTabsCount > 0 ? `刷新 ${affectedTabsCount} 个受影响标签页` : '刷新受影响标签页'}
             >
-              {refreshing ? '刷' : affectedTabsCount > 0 ? `刷(${affectedTabsCount})` : '刷'}
+              {refreshing ? '刷新中' : affectedTabsCount > 0 ? `刷新页面 (${affectedTabsCount})` : '刷新页面'}
             </button>
             <button className="button button--compact" onClick={openOptionsPage}>
               打开应用
@@ -167,18 +167,18 @@ function PopupApp() {
               <table className="rule-table rule-table--popup-compact rule-table--popup-body">
                 <tbody>
                   {state.rules.map((rule) => {
-                    const matchRecord = getRuleMatchRecord(state.matches, rule.id)
+                    const matchCount = currentTabMatches.rules[rule.id] ?? 0
 
                     return (
-                      <tr data-matched={String(isRuleMatched(state.matches, rule.id))} key={rule.id}>
+                      <tr data-matched={String(matchCount > 0)} key={rule.id}>
                         <td title={rule.name}>
                           <div className="rule-cell rule-cell--compact">
                             <strong className="text-truncate">{rule.name}</strong>
                             <span className="microcopy text-truncate">
                               p{rule.priority} · {rule.resourceTypes.join(', ')}
                             </span>
-                            {matchRecord ? (
-                              <span className="rule-hit-badge">{matchRecord.count} hit</span>
+                            {matchCount > 0 ? (
+                              <span className="rule-hit-badge">当前页面 {matchCount} 次</span>
                             ) : null}
                           </div>
                         </td>

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import '../extension.css'
 import {
-  countMatchedRules,
   countEnabledRules,
   countSyncedRules,
   createDraftFromRule,
@@ -11,10 +10,8 @@ import {
   getAppState,
   getDiagnosticsForState,
   getDynamicRulesForState,
-  getRuleMatchRecord,
   getSyncSummary,
   importAppStateText,
-  isRuleMatched,
   saveRule,
   setExtensionEnabled,
   setRuleEnabled,
@@ -178,7 +175,7 @@ function OptionsApp() {
       enabled: nextEnabled,
     }) as { enabled: boolean }
     setAutoRefresh(response.enabled)
-    setTransferMessage(response.enabled ? '已启用自动热更新。规则变更后将自动刷新受影响的标签页。' : '已禁用自动热更新。')
+    setTransferMessage(response.enabled ? '已开启规则变更后自动刷新。' : '已关闭规则变更后自动刷新。')
   }
 
   useEffect(() => {
@@ -250,6 +247,16 @@ function OptionsApp() {
   const openEditEditor = (rule: RedirectRule) => {
     setEditingId(rule.id)
     setDraftOverride(createDraftFromRule(rule))
+    setErrors([])
+    setEditorOpen(true)
+  }
+
+  const openCopyEditor = (rule: RedirectRule) => {
+    setEditingId(null)
+    setDraftOverride({
+      ...createDraftFromRule(rule),
+      name: `${rule.name} 副本`,
+    })
     setErrors([])
     setEditorOpen(true)
   }
@@ -378,9 +385,6 @@ function OptionsApp() {
               <span className="pill">
                 {state ? `${countSyncedRules(state)} 条已同步` : '0 条已同步'}
               </span>
-              <span className="pill">
-                {state ? `${countMatchedRules(state)} 条已匹配` : '0 条已匹配'}
-              </span>
             </div>
           </div>
           <div className="stat-grid">
@@ -452,7 +456,7 @@ function OptionsApp() {
                 data-active={String(autoRefresh)}
                 onClick={handleAutoRefreshToggle}
               >
-                {autoRefresh ? '自动热更新已开' : '自动热更新已关'}
+                {autoRefresh ? '规则变更后自动刷新：开' : '规则变更后自动刷新：关'}
               </button>
               <button
                 className="ghost-button"
@@ -489,19 +493,12 @@ function OptionsApp() {
                   </thead>
                   <tbody>
                     {state.rules.map((rule) => {
-                      const matchRecord = getRuleMatchRecord(state.matches, rule.id)
-
                       return (
-                      <tr data-matched={String(isRuleMatched(state.matches, rule.id))} key={rule.id}>
+                      <tr key={rule.id}>
                         <td>
                           <div className="rule-cell">
                             <strong>{rule.name}</strong>
                             <span className="microcopy">优先级 {rule.priority} · DNR #{rule.dnrId}</span>
-                            {matchRecord ? (
-                              <span className="rule-hit-badge">
-                                {matchRecord.count} 次命中 · {new Date(matchRecord.lastMatchedAt).toLocaleString()}
-                              </span>
-                            ) : null}
                           </div>
                         </td>
                         <td>
@@ -535,6 +532,9 @@ function OptionsApp() {
                           <div className="table-actions">
                             <button className="ghost-button" onClick={() => openEditEditor(rule)}>
                               编辑
+                            </button>
+                            <button className="ghost-button" onClick={() => openCopyEditor(rule)}>
+                              复制
                             </button>
                             <button className="danger-button" onClick={() => handleDelete(rule.id)}>
                               删除
@@ -669,7 +669,7 @@ function OptionsApp() {
 
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="field">
-                <label htmlFor="name">规则名称</label>
+                <label htmlFor="name">规则名称 <span className="field-required">必填</span></label>
                 <input
                   id="name"
                   className="text-input"
@@ -684,15 +684,15 @@ function OptionsApp() {
                 />
               </div>
 
-              <div className="row">
-                <div className="field" style={{ flex: 1 }}>
-                  <label htmlFor="match-type">匹配类型</label>
+              <div className="field field--composite">
+                <div className="field-heading">
+                  <label htmlFor="match-value">匹配目标 <span className="field-required">必填</span></label>
                   <CustomSelect
                     id="match-type"
                     value={draft.matchType}
                     options={[
-                      { value: 'urlFilter', label: 'urlFilter' },
-                      { value: 'regexFilter', label: 'regexFilter' },
+                      { value: 'urlFilter', label: 'URL 匹配' },
+                      { value: 'regexFilter', label: '正则匹配' },
                     ]}
                     onChange={(value) =>
                       updateDraft((current) => ({
@@ -703,9 +703,21 @@ function OptionsApp() {
                     }
                   />
                 </div>
+                <input
+                  id="match-value"
+                  className="text-input"
+                  value={draft.matchValue}
+                  onChange={(event) => updateDraft((current) => ({ ...current, matchValue: event.target.value }))}
+                  placeholder={draft.matchType === 'regexFilter' ? '^https://example\\.com/api/(.*)$' : '||api.example.com/v1/'}
+                />
+                <p className="helper-text">
+                  {draft.matchType === 'regexFilter' ? '输入正则表达式；捕获组可在重定向目标中复用。' : '输入 Chrome DNR urlFilter，例如 ||api.example.com/v1/。'}
+                </p>
+              </div>
 
-                <div className="field" style={{ flex: 1 }}>
-                  <label htmlFor="redirect-type">重定向类型</label>
+              <div className="field field--composite">
+                <div className="field-heading">
+                  <label htmlFor="redirect-value">重定向目标 <span className="field-required">必填</span></label>
                   <CustomSelect
                     id="redirect-type"
                     value={draft.redirectType}
@@ -722,41 +734,6 @@ function OptionsApp() {
                     disabled={draft.matchType !== 'regexFilter'}
                   />
                 </div>
-              </div>
-
-              <div className="field">
-                <label htmlFor="match-value">
-                  {draft.matchType === 'regexFilter' ? '正则过滤' : 'DNR urlFilter'}
-                </label>
-                <input
-                  id="match-value"
-                  className="text-input"
-                  value={draft.matchValue}
-                  onChange={(event) =>
-                    updateDraft((current) => ({
-                      ...current,
-                      matchValue: event.target.value,
-                    }))
-                  }
-                  placeholder={
-                    draft.matchType === 'regexFilter'
-                      ? '^https://example\\.com/api/(.*)$'
-                      : '||api.example.com/v1/'
-                  }
-                />
-                <p className="helper-text">
-                  {draft.matchType === 'regexFilter'
-                    ? '使用兼容 JavaScript 的正则表达式。捕获组可在正则替换重定向中复用。'
-                    : '该值会直接传递给 Chrome 的 declarativeNetRequest urlFilter。'}
-                </p>
-              </div>
-
-              <div className="field">
-                <label htmlFor="redirect-value">
-                  {draft.redirectType === 'regexSubstitution'
-                    ? '正则替换目标'
-                    : '重定向 URL'}
-                </label>
                 <input
                   id="redirect-value"
                   className="text-input"
@@ -782,7 +759,7 @@ function OptionsApp() {
 
               <div className="row">
                 <div className="field" style={{ flex: 1 }}>
-                  <label htmlFor="priority">优先级</label>
+                  <label htmlFor="priority">优先级 <span className="field-optional">选填</span></label>
                   <input
                     id="priority"
                     className="number-input"
@@ -814,7 +791,7 @@ function OptionsApp() {
               </div>
 
               <div className="field">
-                <div className="fieldset-title">资源类型</div>
+                <div className="fieldset-title">资源类型 <span className="field-optional">选填</span></div>
                 <div className="checkbox-grid">
                   {resourceTypeOptions.map((resourceType) => (
                     <label className="checkbox-card" key={resourceType}>

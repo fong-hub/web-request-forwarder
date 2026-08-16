@@ -13,6 +13,14 @@ type ChromeMessageListener = (
   sendResponse: (response: unknown) => void,
 ) => void | true
 
+type ChromeTabActivatedListener = (activeInfo: { tabId: number; windowId: number }) => void | Promise<void>
+type ChromeTabUpdatedListener = (
+  tabId: number,
+  changeInfo: { status?: 'loading' | 'complete'; url?: string },
+  tab: ChromeTab,
+) => void | Promise<void>
+type ChromeTabRemovedListener = (tabId: number) => void | Promise<void>
+
 type ChromeTab = {
   id?: number
   url?: string
@@ -21,6 +29,7 @@ type ChromeTab = {
 type ChromeDnrMatchedRuleListener = (info: {
   request?: {
     url?: string
+    tabId?: number
   }
   rule: {
     ruleId: number
@@ -33,7 +42,7 @@ type ChromeManifest = {
 
 declare const chrome: {
   action?: {
-    setBadgeText(options: { text: string }): Promise<void>
+    setBadgeText(options: { text: string; tabId?: number }): Promise<void>
     setBadgeBackgroundColor(options: { color: string }): Promise<void>
     setTitle(options: { title: string }): Promise<void>
     setIcon(options: {
@@ -45,6 +54,11 @@ declare const chrome: {
     local: {
       get(keys?: string[] | string | null): Promise<Record<string, unknown>>
       set(items: Record<string, unknown>): Promise<void>
+    }
+    session: {
+      get(keys?: string[] | string | null): Promise<Record<string, unknown>>
+      set(items: Record<string, unknown>): Promise<void>
+      remove(keys: string[] | string): Promise<void>
     }
     onChanged: {
       addListener(callback: ChromeStorageChangeListener): void
@@ -86,5 +100,14 @@ declare const chrome: {
     create(options: { url: string }): Promise<void>
     query(queryInfo: Record<string, unknown>): Promise<ChromeTab[]>
     reload(tabId: number, reloadProperties?: { bypassCache?: boolean }): Promise<void>
+    onActivated: {
+      addListener(callback: ChromeTabActivatedListener): void
+    }
+    onUpdated: {
+      addListener(callback: ChromeTabUpdatedListener): void
+    }
+    onRemoved: {
+      addListener(callback: ChromeTabRemovedListener): void
+    }
   }
 }

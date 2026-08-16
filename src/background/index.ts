@@ -1,9 +1,7 @@
 import {
-  countMatchedRules,
   getAppState,
   getDynamicRulesForState,
   initializeStorage,
-  recordRuleMatch,
   setSyncState,
   type AppState,
 } from '../core/storage'
@@ -14,6 +12,33 @@ const ICON_PATHS = {
   48: 'src/assets/icon-48.png',
   128: 'src/assets/icon-128.png',
 } as const
+
+type TabMatchState = {
+  total: number
+  rules: Record<string, number>
+}
+
+const tabMatches = new Map<number, TabMatchState>()
+const TAB_MATCHES_SESSION_KEY = 'request-forwarder.tab-matches'
+
+const hydrateTabMatches = (async () => {
+  const stored = await chrome.storage.session.get(TAB_MATCHES_SESSION_KEY)
+  const entries = stored[TAB_MATCHES_SESSION_KEY]
+  if (!Array.isArray(entries)) {
+    return
+  }
+
+  entries.forEach((entry) => {
+    if (!Array.isArray(entry) || typeof entry[0] !== 'number' || !entry[1] || typeof entry[1] !== 'object') {
+      return
+    }
+    tabMatches.set(entry[0], entry[1] as TabMatchState)
+  })
+})()
+
+const persistTabMatches = () => chrome.storage.session.set({
+  [TAB_MATCHES_SESSION_KEY]: [...tabMatches.entries()],
+})
 
 let disabledIconCache: Promise<Record<number, ImageData>> | null = null
 
@@ -77,16 +102,27 @@ const syncActionState = async (state: AppState) => {
     return
   }
 
-  const matchedCount = countMatchedRules(state)
-  const badgeText = state.extensionEnabled && matchedCount > 0 ? String(matchedCount) : ''
+  await hydrateTabMatches
 
-  await chrome.action.setBadgeText({ text: badgeText })
+  await chrome.action.setBadgeText({ text: '' })
+  const tabs = await chrome.tabs?.query({}) ?? []
+  await Promise.all(tabs.flatMap((tab) => {
+    if (typeof tab.id !== 'number') {
+      return []
+    }
+
+    const count = tabMatches.get(tab.id)?.total ?? 0
+    return [chrome.action!.setBadgeText({
+      text: state.extensionEnabled && count > 0 ? String(count) : '',
+      tabId: tab.id,
+    })]
+  }))
   await chrome.action.setBadgeBackgroundColor({
     color: state.extensionEnabled ? '#246b45' : '#7a7a7a',
   })
   await chrome.action.setTitle({
     title: state.extensionEnabled
-      ? `请求转发器${matchedCount > 0 ? ` · ${matchedCount} 条规则已匹配` : ''}`
+      ? '请求转发器'
       : '请求转发器 · 全局已禁用',
   })
 
@@ -205,13 +241,44 @@ chrome.storage.onChanged.addListener(
 )
 
 chrome.declarativeNetRequest.onRuleMatchedDebug?.addListener(async (info) => {
-  const nextState = await recordRuleMatch(info.rule.ruleId, info.request?.url ?? null)
-
-  if (!nextState) {
+  await hydrateTabMatches
+  const state = await getAppState()
+  const matchedRule = state.rules.find((rule) => rule.dnrId === info.rule.ruleId)
+  if (!matchedRule) {
     return
   }
 
-  await syncActionState(await getAppState())
+  const tabId = info.request?.tabId
+  if (typeof tabId === 'number' && tabId >= 0) {
+    const current = tabMatches.get(tabId) ?? { total: 0, rules: {} }
+    const next = {
+      total: current.total + 1,
+      rules: {
+        ...current.rules,
+        [matchedRule.id]: (current.rules[matchedRule.id] ?? 0) + 1,
+      },
+    }
+    tabMatches.set(tabId, next)
+    await persistTabMatches()
+    await chrome.action?.setBadgeText({ text: String(next.total), tabId })
+  }
+})
+
+chrome.tabs?.onUpdated.addListener(async (tabId, changeInfo) => {
+  if (changeInfo.status !== 'loading') {
+    return
+  }
+
+  await hydrateTabMatches
+  tabMatches.delete(tabId)
+  await persistTabMatches()
+  await chrome.action?.setBadgeText({ text: '', tabId })
+})
+
+chrome.tabs?.onRemoved.addListener(async (tabId) => {
+  await hydrateTabMatches
+  tabMatches.delete(tabId)
+  await persistTabMatches()
 })
 
 type ChromeTab = {
@@ -288,6 +355,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       sendResponse({ enabled: autoRefreshEnabled })
     } else if (message.type === 'getAutoRefresh') {
       sendResponse({ enabled: autoRefreshEnabled })
+    } else if (message.type === 'getCurrentTabMatches') {
+      await hydrateTabMatches
+      const [activeTab] = await chrome.tabs?.query({ active: true, currentWindow: true }) ?? []
+      const matches = typeof activeTab?.id === 'number' ? tabMatches.get(activeTab.id) : null
+      sendResponse(matches ?? { total: 0, rules: {} })
     }
   })()
   return true
