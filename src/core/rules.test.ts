@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   analyzeRules,
+  createScenarioDraft,
   createRuleFromDraft,
   defaultRuleDraft,
   normalizeImportedRules,
+  previewRuleDraft,
   toDynamicRule,
   validateRuleDraft,
 } from './rules'
@@ -114,6 +116,34 @@ describe('rules', () => {
     )
     expect(diagnostics.some((item) => item.id.startsWith('same-priority:'))).toBe(
       true,
+    )
+  })
+
+  it('builds and previews a path forwarding rule', () => {
+    const draft = createScenarioDraft(
+      'prefix',
+      'https://api.example.com/v1/',
+      'http://localhost:3000/',
+      { ...defaultRuleDraft(), name: 'Local API' },
+    )
+
+    expect(previewRuleDraft(draft, 'https://api.example.com/v1/users/42')).toEqual({
+      matched: true,
+      resultUrl: 'http://localhost:3000/users/42',
+      error: null,
+    })
+    expect(previewRuleDraft(draft, 'https://api.example.com/v2/users/42').matched).toBe(false)
+  })
+
+  it('previews an exact request replacement', () => {
+    const draft = createScenarioDraft(
+      'exact',
+      'https://api.example.com/health',
+      'https://mock.example.com/healthy.json',
+    )
+
+    expect(previewRuleDraft(draft, 'https://api.example.com/health').resultUrl).toBe(
+      'https://mock.example.com/healthy.json',
     )
   })
 })

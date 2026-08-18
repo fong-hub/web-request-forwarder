@@ -90,6 +90,7 @@ const performSyncDynamicRules = async () => {
 const syncDynamicRules = async () => {
   const state = await performSyncDynamicRules()
 
+  await hydrateAutoRefresh
   if (autoRefreshEnabled) {
     await refreshAffectedTabs()
   }
@@ -334,13 +335,23 @@ export const refreshAffectedTabs = async (): Promise<number> => {
   return tabs.length
 }
 
+const AUTO_REFRESH_KEY = 'request-forwarder.auto-refresh'
 let autoRefreshEnabled = false
+const hydrateAutoRefresh = (async () => {
+  const stored = await chrome.storage.local.get(AUTO_REFRESH_KEY)
+  autoRefreshEnabled = stored[AUTO_REFRESH_KEY] === true
+})()
 
-export const setAutoRefresh = (enabled: boolean) => {
+export const setAutoRefresh = async (enabled: boolean) => {
+  await hydrateAutoRefresh
   autoRefreshEnabled = enabled
+  await chrome.storage.local.set({ [AUTO_REFRESH_KEY]: enabled })
 }
 
-export const getAutoRefresh = () => autoRefreshEnabled
+export const getAutoRefresh = async () => {
+  await hydrateAutoRefresh
+  return autoRefreshEnabled
+}
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
@@ -351,15 +362,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       const tabs = await getAffectedTabs()
       sendResponse({ count: tabs.length })
     } else if (message.type === 'setAutoRefresh') {
-      setAutoRefresh(message.enabled ?? false)
+      await setAutoRefresh(message.enabled ?? false)
       sendResponse({ enabled: autoRefreshEnabled })
     } else if (message.type === 'getAutoRefresh') {
-      sendResponse({ enabled: autoRefreshEnabled })
+      sendResponse({ enabled: await getAutoRefresh() })
     } else if (message.type === 'getCurrentTabMatches') {
       await hydrateTabMatches
       const [activeTab] = await chrome.tabs?.query({ active: true, currentWindow: true }) ?? []
       const matches = typeof activeTab?.id === 'number' ? tabMatches.get(activeTab.id) : null
       sendResponse(matches ?? { total: 0, rules: {} })
+    } else if (message.type === 'getCurrentTabContext') {
+      const [activeTab] = await chrome.tabs?.query({ active: true, currentWindow: true }) ?? []
+      sendResponse({ url: activeTab?.url ?? null })
     }
   })()
   return true

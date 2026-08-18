@@ -10,6 +10,7 @@ export const resourceTypeOptions = [
 export type ResourceType = (typeof resourceTypeOptions)[number]
 export type MatchType = 'urlFilter' | 'regexFilter'
 export type RedirectType = 'url' | 'regexSubstitution'
+export type RuleScenario = 'prefix' | 'exact' | 'advanced'
 
 export type RedirectRule = {
   id: string
@@ -40,6 +41,12 @@ export type RuleDraft = {
 export type RuleValidationResult = {
   valid: boolean
   errors: string[]
+}
+
+export type RulePreviewResult = {
+  matched: boolean
+  resultUrl: string | null
+  error: string | null
 }
 
 export type DynamicRedirectRule = {
@@ -77,6 +84,73 @@ export const defaultRuleDraft = (): RuleDraft => ({
   redirectValue: 'https://staging.example.com/v1/',
   resourceTypes: ['script'],
 })
+
+export const createScenarioDraft = (
+  scenario: RuleScenario,
+  source: string,
+  target: string,
+  base: RuleDraft = defaultRuleDraft(),
+): RuleDraft => {
+  if (scenario === 'advanced') {
+    return base
+  }
+
+  if (scenario === 'exact') {
+    return {
+      ...base,
+      matchType: 'urlFilter',
+      matchValue: source ? `|${source}|` : '',
+      redirectType: 'url',
+      redirectValue: target,
+    }
+  }
+
+  return {
+    ...base,
+    matchType: 'regexFilter',
+    matchValue: source ? `^${escapeRegex(source)}(.*)$` : '',
+    redirectType: 'regexSubstitution',
+    redirectValue: target ? `${target}$1` : '',
+  }
+}
+
+export const previewRuleDraft = (
+  draft: RuleDraft,
+  requestUrl: string,
+): RulePreviewResult => {
+  if (!requestUrl.trim()) {
+    return { matched: false, resultUrl: null, error: null }
+  }
+
+  if (!isHttpUrl(requestUrl)) {
+    return { matched: false, resultUrl: null, error: '请输入完整的 http(s) 请求 URL。' }
+  }
+
+  try {
+    const match = draft.matchType === 'regexFilter'
+      ? new RegExp(draft.matchValue).test(requestUrl)
+      : matchesUrlFilter(draft.matchValue, requestUrl)
+
+    if (!match) {
+      return { matched: false, resultUrl: null, error: null }
+    }
+
+    const resultUrl = draft.redirectType === 'regexSubstitution'
+      ? requestUrl.replace(
+          new RegExp(draft.matchValue),
+          draft.redirectValue.replace(/\\(\d)/g, '$$$1'),
+        )
+      : draft.redirectValue
+
+    return { matched: true, resultUrl, error: null }
+  } catch (error) {
+    return {
+      matched: false,
+      resultUrl: null,
+      error: error instanceof Error ? error.message : '无法测试这条规则。',
+    }
+  }
+}
 
 export const createExampleRule = (): RedirectRule => {
   const now = new Date().toISOString()
@@ -493,4 +567,37 @@ const isHttpUrl = (value: string) => {
   } catch {
     return false
   }
+}
+
+const escapeRegex = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const matchesUrlFilter = (filter: string, requestUrl: string) => {
+  if (!filter) {
+    return false
+  }
+
+  if (filter.startsWith('||')) {
+    const value = filter.slice(2).replace(/\|$/, '')
+    const slashIndex = value.indexOf('/')
+    const host = slashIndex >= 0 ? value.slice(0, slashIndex) : value
+    const path = slashIndex >= 0 ? value.slice(slashIndex) : ''
+    const url = new URL(requestUrl)
+    return (url.hostname === host || url.hostname.endsWith(`.${host}`)) && url.pathname.startsWith(path)
+  }
+
+  const leftAnchored = filter.startsWith('|')
+  const rightAnchored = filter.endsWith('|')
+  const value = filter.replace(/^\|/, '').replace(/\|$/, '')
+
+  if (leftAnchored && rightAnchored) {
+    return requestUrl === value
+  }
+  if (leftAnchored) {
+    return requestUrl.startsWith(value)
+  }
+  if (rightAnchored) {
+    return requestUrl.endsWith(value)
+  }
+  return requestUrl.includes(value)
 }

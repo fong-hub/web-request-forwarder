@@ -21,6 +21,7 @@ function PopupApp() {
   const [refreshing, setRefreshing] = useState(false)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [currentTabMatches, setCurrentTabMatches] = useState<{ total: number; rules: Record<string, number> }>({ total: 0, rules: {} })
+  const [currentTabUrl, setCurrentTabUrl] = useState<string | null>(null)
 
   useEffect(() => {
     document.documentElement.dataset.surface = 'popup'
@@ -68,6 +69,8 @@ function PopupApp() {
         setAutoRefresh(autoRefreshResponse.enabled)
         const matchResponse = await chrome.runtime.sendMessage({ type: 'getCurrentTabMatches' }) as { total: number; rules: Record<string, number> }
         setCurrentTabMatches(matchResponse)
+        const contextResponse = await chrome.runtime.sendMessage({ type: 'getCurrentTabContext' }) as { url: string | null }
+        setCurrentTabUrl(contextResponse.url)
       }
     }
 
@@ -99,6 +102,17 @@ function PopupApp() {
       enabled: !autoRefresh,
     }) as { enabled: boolean }
     setAutoRefresh(response.enabled)
+  }
+
+  const createFromCurrentPage = async () => {
+    if (!currentTabUrl || !/^https?:\/\//.test(currentTabUrl)) {
+      return
+    }
+
+    const optionsUrl = chrome.runtime.getURL('src/options/index.html')
+    await chrome.tabs?.create({
+      url: `${optionsUrl}?quick=1&source=${encodeURIComponent(currentTabUrl)}`,
+    })
   }
 
   return (
@@ -134,6 +148,14 @@ function PopupApp() {
               title={affectedTabsCount > 0 ? `刷新 ${affectedTabsCount} 个受影响标签页` : '刷新受影响标签页'}
             >
               {refreshing ? '刷新中' : affectedTabsCount > 0 ? `刷新页面 (${affectedTabsCount})` : '刷新页面'}
+            </button>
+            <button
+              className="button button--compact"
+              disabled={!currentTabUrl || !/^https?:\/\//.test(currentTabUrl)}
+              onClick={createFromCurrentPage}
+              title="使用当前标签页地址创建规则"
+            >
+              用当前页新建
             </button>
             <button className="button button--compact" onClick={openOptionsPage}>
               打开应用

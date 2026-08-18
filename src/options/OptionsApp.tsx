@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import '../extension.css'
 import {
   countEnabledRules,
@@ -19,13 +19,16 @@ import {
   type AppState,
 } from '../core/storage'
 import {
+  createScenarioDraft,
   defaultRuleDraft,
+  previewRuleDraft,
   resourceTypeOptions,
   validateRuleDraft,
   type MatchType,
   type RedirectRule,
   type RedirectType,
   type RuleDraft,
+  type RuleScenario,
   type ResourceType,
 } from '../core/rules'
 
@@ -106,6 +109,10 @@ function OptionsApp() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [affectedTabsCount, setAffectedTabsCount] = useState(0)
   const [refreshing, setRefreshing] = useState(false)
+  const [scenario, setScenario] = useState<RuleScenario>('prefix')
+  const [scenarioSource, setScenarioSource] = useState('')
+  const [scenarioTarget, setScenarioTarget] = useState('')
+  const [testUrl, setTestUrl] = useState('')
 
   const closeEditor = () => {
     setEditorOpen(false)
@@ -233,18 +240,38 @@ function OptionsApp() {
   }
 
   const resetEditorDraft = () => {
-    setDraftOverride(editingId ? null : defaultRuleDraft())
+    if (editingId) {
+      setDraftOverride(null)
+      setScenario('advanced')
+      setTestUrl('')
+    } else {
+      const base = { ...defaultRuleDraft(), name: '', resourceTypes: ['xmlhttprequest'] as ResourceType[] }
+      setScenario('prefix')
+      setScenarioSource('')
+      setScenarioTarget('')
+      setTestUrl('')
+      setDraftOverride(createScenarioDraft('prefix', '', '', base))
+    }
     setErrors([])
   }
 
   const openCreateEditor = () => {
-    setDraftOverride(defaultRuleDraft())
+    const base = { ...defaultRuleDraft(), name: '', resourceTypes: ['xmlhttprequest'] as ResourceType[] }
+    setScenario('prefix')
+    setScenarioSource('')
+    setScenarioTarget('')
+    setTestUrl('')
+    setDraftOverride(createScenarioDraft('prefix', '', '', base))
     setEditingId(null)
     setErrors([])
     setEditorOpen(true)
   }
 
   const openEditEditor = (rule: RedirectRule) => {
+    setScenario('advanced')
+    setScenarioSource('')
+    setScenarioTarget('')
+    setTestUrl(rule.matchType === 'urlFilter' ? rule.matchValue.replace(/^\|+|\|+$/g, '') : '')
     setEditingId(rule.id)
     setDraftOverride(createDraftFromRule(rule))
     setErrors([])
@@ -252,6 +279,10 @@ function OptionsApp() {
   }
 
   const openCopyEditor = (rule: RedirectRule) => {
+    setScenario('advanced')
+    setScenarioSource('')
+    setScenarioTarget('')
+    setTestUrl('')
     setEditingId(null)
     setDraftOverride({
       ...createDraftFromRule(rule),
@@ -260,6 +291,79 @@ function OptionsApp() {
     setErrors([])
     setEditorOpen(true)
   }
+
+  const updateScenario = (nextScenario: RuleScenario) => {
+    let nextSource = scenarioSource || testUrl
+    if (nextScenario === 'exact' && testUrl) {
+      nextSource = testUrl
+    } else if (nextScenario === 'prefix' && scenario === 'exact' && testUrl) {
+      try {
+        const url = new URL(testUrl)
+        nextSource = `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`
+      } catch {
+        nextSource = scenarioSource
+      }
+    }
+    setScenario(nextScenario)
+    if (nextScenario === 'advanced') {
+      return
+    }
+    setScenarioSource(nextSource)
+    setDraftOverride(createScenarioDraft(nextScenario, nextSource, scenarioTarget, draft))
+  }
+
+  const updateScenarioValues = (source: string, target: string) => {
+    setScenarioSource(source)
+    setScenarioTarget(target)
+    setDraftOverride(createScenarioDraft(scenario, source, target, draft))
+  }
+
+  const openQuickEditor = useCallback((requestUrl: string) => {
+    try {
+      const url = new URL(requestUrl)
+      const lastSlash = url.pathname.lastIndexOf('/')
+      const pathPrefix = url.pathname.slice(0, lastSlash + 1)
+      const source = `${url.origin}${pathPrefix}`
+      const target = 'http://localhost:3000/'
+      const base = {
+        ...defaultRuleDraft(),
+        name: `${url.hostname} 转发到本地`,
+        resourceTypes: ['xmlhttprequest'] as ResourceType[],
+      }
+      setScenario('prefix')
+      setScenarioSource(source)
+      setScenarioTarget(target)
+      setTestUrl(requestUrl)
+      setDraftOverride(createScenarioDraft('prefix', source, target, base))
+      setEditingId(null)
+      setErrors([])
+      setEditorOpen(true)
+    } catch {
+      const base = { ...defaultRuleDraft(), name: '', resourceTypes: ['xmlhttprequest'] as ResourceType[] }
+      setScenario('prefix')
+      setScenarioSource('')
+      setScenarioTarget('')
+      setTestUrl('')
+      setDraftOverride(createScenarioDraft('prefix', '', '', base))
+      setEditingId(null)
+      setErrors([])
+      setEditorOpen(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const source = params.get('source')
+    if (params.get('quick') === '1' && source) {
+      openQuickEditor(source)
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [openQuickEditor])
+
+  const rulePreview = useMemo(
+    () => previewRuleDraft(draft, testUrl),
+    [draft, testUrl],
+  )
 
   const clearTransferStatus = () => {
     setTransferMessage(null)
@@ -669,6 +773,28 @@ function OptionsApp() {
 
             <form className="form-grid" onSubmit={handleSubmit}>
               <div className="field">
+                <div className="fieldset-title">你想怎么转发？</div>
+                <div className="scenario-grid" role="group" aria-label="规则场景">
+                  {([
+                    ['prefix', '转发一段路径', '保留源地址后面的路径，适合 API 转本地'],
+                    ['exact', '替换单个请求', '仅替换一个完整请求地址'],
+                    ['advanced', '高级规则', '直接配置 URL 过滤或正则表达式'],
+                  ] as const).map(([value, title, description]) => (
+                    <button
+                      className="scenario-option"
+                      data-active={String(scenario === value)}
+                      key={value}
+                      onClick={() => updateScenario(value)}
+                      type="button"
+                    >
+                      <strong>{title}</strong>
+                      <span>{description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="field">
                 <label htmlFor="name">规则名称 <span className="field-required">必填</span></label>
                 <input
                   id="name"
@@ -684,78 +810,113 @@ function OptionsApp() {
                 />
               </div>
 
-              <div className="field field--composite">
-                <div className="field-heading">
-                  <label htmlFor="match-value">匹配目标 <span className="field-required">必填</span></label>
-                  <CustomSelect
-                    id="match-type"
-                    value={draft.matchType}
-                    options={[
-                      { value: 'urlFilter', label: 'URL 匹配' },
-                      { value: 'regexFilter', label: '正则匹配' },
-                    ]}
-                    onChange={(value) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        matchType: value as MatchType,
-                        redirectType: value === 'regexFilter' ? current.redirectType : 'url',
-                      }))
-                    }
-                  />
-                </div>
-                <input
-                  id="match-value"
-                  className="text-input"
-                  value={draft.matchValue}
-                  onChange={(event) => updateDraft((current) => ({ ...current, matchValue: event.target.value }))}
-                  placeholder={draft.matchType === 'regexFilter' ? '^https://example\\.com/api/(.*)$' : '||api.example.com/v1/'}
-                />
-                <p className="helper-text">
-                  {draft.matchType === 'regexFilter' ? '输入正则表达式；捕获组可在重定向目标中复用。' : '输入 Chrome DNR urlFilter，例如 ||api.example.com/v1/。'}
-                </p>
-              </div>
+              {scenario === 'advanced' ? (
+                <>
+                  <div className="field field--composite">
+                    <div className="field-heading">
+                      <label htmlFor="match-value">匹配目标 <span className="field-required">必填</span></label>
+                      <CustomSelect
+                        id="match-type"
+                        value={draft.matchType}
+                        options={[
+                          { value: 'urlFilter', label: 'URL 匹配' },
+                          { value: 'regexFilter', label: '正则匹配' },
+                        ]}
+                        onChange={(value) => updateDraft((current) => ({
+                          ...current,
+                          matchType: value as MatchType,
+                          redirectType: value === 'regexFilter' ? current.redirectType : 'url',
+                        }))}
+                      />
+                    </div>
+                    <input
+                      id="match-value"
+                      className="text-input"
+                      value={draft.matchValue}
+                      onChange={(event) => updateDraft((current) => ({ ...current, matchValue: event.target.value }))}
+                      placeholder={draft.matchType === 'regexFilter' ? '^https://example\\.com/api/(.*)$' : '||api.example.com/v1/'}
+                    />
+                  </div>
 
-              <div className="field field--composite">
-                <div className="field-heading">
-                  <label htmlFor="redirect-value">重定向目标 <span className="field-required">必填</span></label>
-                  <CustomSelect
-                    id="redirect-type"
-                    value={draft.redirectType}
-                    options={[
-                      { value: 'url', label: '固定 URL' },
-                      { value: 'regexSubstitution', label: '正则替换' },
-                    ]}
-                    onChange={(value) =>
-                      updateDraft((current) => ({
-                        ...current,
-                        redirectType: value as RedirectType,
-                      }))
-                    }
-                    disabled={draft.matchType !== 'regexFilter'}
+                  <div className="field field--composite">
+                    <div className="field-heading">
+                      <label htmlFor="redirect-value">重定向目标 <span className="field-required">必填</span></label>
+                      <CustomSelect
+                        id="redirect-type"
+                        value={draft.redirectType}
+                        options={[
+                          { value: 'url', label: '固定 URL' },
+                          { value: 'regexSubstitution', label: '正则替换' },
+                        ]}
+                        onChange={(value) => updateDraft((current) => ({
+                          ...current,
+                          redirectType: value as RedirectType,
+                        }))}
+                        disabled={draft.matchType !== 'regexFilter'}
+                      />
+                    </div>
+                    <input
+                      id="redirect-value"
+                      className="text-input"
+                      value={draft.redirectValue}
+                      onChange={(event) => updateDraft((current) => ({ ...current, redirectValue: event.target.value }))}
+                      placeholder={draft.redirectType === 'regexSubstitution' ? 'http://127.0.0.1:9999/$2' : 'https://staging.example.com/v1/'}
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="route-builder">
+                  <div className="field">
+                    <label htmlFor="scenario-source">
+                      {scenario === 'prefix' ? '源路径' : '请求地址'} <span className="field-required">必填</span>
+                    </label>
+                    <input
+                      id="scenario-source"
+                      className="text-input"
+                      value={scenarioSource}
+                      onChange={(event) => updateScenarioValues(event.target.value, scenarioTarget)}
+                      placeholder="https://api.example.com/v1/"
+                    />
+                  </div>
+                  <span className="route-builder__arrow" aria-hidden="true">→</span>
+                  <div className="field">
+                    <label htmlFor="scenario-target">
+                      {scenario === 'prefix' ? '目标路径' : '替换为'} <span className="field-required">必填</span>
+                    </label>
+                    <input
+                      id="scenario-target"
+                      className="text-input"
+                      value={scenarioTarget}
+                      onChange={(event) => updateScenarioValues(scenarioSource, event.target.value)}
+                      placeholder="http://localhost:3000/"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <section className="rule-tester" data-matched={String(rulePreview.matched)}>
+                <div className="field">
+                  <label htmlFor="test-url">用一个真实请求测试</label>
+                  <input
+                    id="test-url"
+                    className="text-input"
+                    value={testUrl}
+                    onChange={(event) => setTestUrl(event.target.value)}
+                    placeholder="https://api.example.com/v1/users/42"
                   />
                 </div>
-                <input
-                  id="redirect-value"
-                  className="text-input"
-                  value={draft.redirectValue}
-                  onChange={(event) =>
-                    updateDraft((current) => ({
-                      ...current,
-                      redirectValue: event.target.value,
-                    }))
-                  }
-                  placeholder={
-                    draft.redirectType === 'regexSubstitution'
-                      ? 'http://127.0.0.1:9999/$2'
-                      : 'https://staging.example.com/v1/'
-                  }
-                />
-                <p className="helper-text">
-                  {draft.redirectType === 'regexSubstitution'
-                    ? '您可以在此输入 `$1`、`$2` 等。扩展程序会将其规范化为 Chrome DNR 正则替换语法。'
-                    : '请使用绝对 http(s) URL。'}
-                </p>
-              </div>
+                <div className="rule-tester__result" aria-live="polite">
+                  {!testUrl ? (
+                    <span>输入请求 URL 后，这里会显示是否匹配和最终地址。</span>
+                  ) : rulePreview.error ? (
+                    <strong>{rulePreview.error}</strong>
+                  ) : rulePreview.matched ? (
+                    <><span>匹配成功，将转发到</span><code>{rulePreview.resultUrl}</code></>
+                  ) : (
+                    <strong>这条请求不会命中当前规则。</strong>
+                  )}
+                </div>
+              </section>
 
               <div className="row">
                 <div className="field" style={{ flex: 1 }}>
