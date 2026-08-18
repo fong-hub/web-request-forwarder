@@ -61,7 +61,7 @@ select:focus-visible {
 }
 
 .app-shell--wide {
-  width: min(1100px, calc(100vw - 32px));
+  width: min(1280px, calc(100vw - 32px));
   padding-block: 28px 40px;
 }
 
@@ -811,34 +811,43 @@ h3 {
 }
 
 /* Options page table column widths */
+.rule-table:not(.rule-table--popup-compact) {
+  min-width: 1050px;
+  table-layout: fixed;
+}
+
+.rule-table:not(.rule-table--popup-compact) td {
+  vertical-align: middle;
+}
+
 .rule-table:not(.rule-table--popup-compact) th:nth-child(1),
 .rule-table:not(.rule-table--popup-compact) td:nth-child(1) {
-  width: 18%;
+  width: 15%;
 }
 
 .rule-table:not(.rule-table--popup-compact) th:nth-child(2),
 .rule-table:not(.rule-table--popup-compact) td:nth-child(2) {
-  width: 24%;
+  width: 20%;
 }
 
 .rule-table:not(.rule-table--popup-compact) th:nth-child(3),
 .rule-table:not(.rule-table--popup-compact) td:nth-child(3) {
-  width: 24%;
+  width: 20%;
 }
 
 .rule-table:not(.rule-table--popup-compact) th:nth-child(4),
 .rule-table:not(.rule-table--popup-compact) td:nth-child(4) {
-  width: 14%;
+  width: 13%;
 }
 
 .rule-table:not(.rule-table--popup-compact) th:nth-child(5),
 .rule-table:not(.rule-table--popup-compact) td:nth-child(5) {
-  width: 10%;
+  width: 13%;
 }
 
 .rule-table:not(.rule-table--popup-compact) th:nth-child(6),
 .rule-table:not(.rule-table--popup-compact) td:nth-child(6) {
-  width: 10%;
+  width: 19%;
 }
 
 .rule-cell {
@@ -864,6 +873,11 @@ h3 {
   line-height: 1.35;
 }
 
+.rule-types {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
 .rule-snippet--compact {
   width: 100%;
   padding: 0;
@@ -876,14 +890,15 @@ h3 {
 
 .table-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
 }
 
 .table-actions .ghost-button,
 .table-actions .danger-button {
-  padding: 7px 12px;
-  font-size: 0.82rem;
+  padding: 7px 9px;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .popup-rule-list {
